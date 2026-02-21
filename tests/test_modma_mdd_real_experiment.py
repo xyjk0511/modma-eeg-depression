@@ -194,6 +194,11 @@ def test_main_writes_metrics_json(tmp_path, monkeypatch):
     assert (tmp_path / "roc_curve.png").exists()
     assert (tmp_path / "confusion_matrix.png").exists()
 
+    # Verify feature_importance.csv contains real f_classif scores, not random
+    imp_df = pd.read_csv(tmp_path / "feature_importance.csv")
+    assert len(imp_df) > 0
+    assert not imp_df["importance"].between(0, 1).all(), "Looks like random [0,1) values, not F-scores"
+
 
 # --- Regression tests for 6 code-review findings ---
 

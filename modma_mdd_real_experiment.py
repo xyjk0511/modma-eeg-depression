@@ -406,14 +406,18 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
 if __name__ == "__main__":
     args = parse_args()
     logging.basicConfig(level=logging.INFO, format='%(message)s')
-    run_main_with_output_dir(
-        bids_root=args.bids_root,
-        output_dir=args.output_dir,
-        max_subjects=args.max_subjects,
-        resample_sfreq=args.resample_sfreq,
-        n_permutations=args.n_permutations,
-        seed=args.seed,
-        min_windows_per_subject=args.min_windows_per_subject,
-        window_sec=args.window_sec,
-        crop_duration=args.crop_duration
-    )
+    try:
+        run_main_with_output_dir(
+            bids_root=args.bids_root,
+            output_dir=args.output_dir,
+            max_subjects=args.max_subjects,
+            resample_sfreq=args.resample_sfreq,
+            n_permutations=args.n_permutations,
+            seed=args.seed,
+            min_windows_per_subject=args.min_windows_per_subject,
+            window_sec=args.window_sec,
+            crop_duration=args.crop_duration
+        )
+    except (ValueError, FileNotFoundError) as e:
+        logger.error(f"Error: {e}")
+        raise SystemExit(1)
