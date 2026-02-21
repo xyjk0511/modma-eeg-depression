@@ -6,6 +6,8 @@ import glob
 import logging
 import warnings
 import json
+import matplotlib
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import mne
 from scipy.signal import welch
