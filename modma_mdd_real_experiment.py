@@ -381,13 +381,20 @@ def compute_connectivity_features(X, sfreq, region_idx):
     for region in REGIONS:
         idx = region_idx[region]
         region_signals[region] = np.mean(X[:, idx, :], axis=1) if idx else np.zeros((n_win, X.shape[2]))
+    # Precompute auto-spectra per region
+    auto_psd = {}
+    for region in REGIONS:
+        _, Pxx = csd(region_signals[region], region_signals[region], fs=sfreq, nperseg=nperseg, axis=1)
+        auto_psd[region] = np.real(Pxx)
     features, names = [], []
     for r1, r2 in pairs:
         freqs_c, Pxy = csd(region_signals[r1], region_signals[r2], fs=sfreq, nperseg=nperseg, axis=1)
         for band_name, (fmin, fmax) in bands.items():
             mask = (freqs_c >= fmin) & (freqs_c <= fmax)
-            csd_band = np.mean(Pxy[:, mask], axis=1)
-            imcoh = np.abs(np.imag(csd_band)) / (np.abs(csd_band) + 1e-10)
+            # Per-bin ImCoh = |Im(Cxy)| / sqrt(Pxx * Pyy), then average across band
+            im_cxy = np.abs(np.imag(Pxy[:, mask]))
+            denom = np.sqrt(auto_psd[r1][:, mask] * auto_psd[r2][:, mask]) + 1e-10
+            imcoh = np.mean(im_cxy / denom, axis=1)
             features.append(imcoh[:, np.newaxis])
             names.append(f"imcoh_{r1}_{r2}_{band_name}")
     return np.column_stack(features), names
@@ -881,7 +888,7 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
 
     # Save permutation scores as separate CSV
     perm_scores = report.pop("permutation_scores", None)
-    if perm_scores:
+    if perm_scores is not None and len(perm_scores) > 0:
         pd.DataFrame({"balanced_accuracy": perm_scores}).to_csv(
             os.path.join(output_dir, "permutation_scores.csv"), index=False)
 
