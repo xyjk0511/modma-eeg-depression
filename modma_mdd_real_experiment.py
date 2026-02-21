@@ -27,6 +27,7 @@ try:
 except ImportError:
     HAS_LGBM = False
 
+_lgbm_warned = False
 logger = logging.getLogger(__name__)
 
 REGIONS = ["frontal", "central", "temporal", "parietal", "occipital"]
@@ -422,8 +423,10 @@ def run_full_model_selection(X_raw, y, groups, ch_names, sfreq,
                               min_windows_per_subject=3,
                               n_splits=5, seed=42):
     """Outer CV with inner search over QC thresholds + models + hyperparams."""
-    if not HAS_LGBM:
+    global _lgbm_warned
+    if not HAS_LGBM and not _lgbm_warned:
         logger.warning("LightGBM not installed, using SVM and logistic regression only")
+        _lgbm_warned = True
     # Try each QC candidate to find one that works for outer CV splitting
     result = None
     for qc_thr in bad_amp_candidates:
@@ -488,7 +491,7 @@ def run_full_model_selection(X_raw, y, groups, ch_names, sfreq,
 
         # Fallback
         if best_cfg is None:
-            best_cfg = {"qc_thr": default_qc, "model": "svm", "params": {}}
+            best_cfg = {"qc_thr": bad_amp_candidates[0], "model": "svm", "params": {}}
 
         # Retrain on full train with best config, predict on test
         res_tr = _apply_qc_and_extract(X_raw[train_raw_mask], y[train_raw_mask],
@@ -742,39 +745,37 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
     if X_windows.ndim != 3 or len(X_windows) == 0:
         raise ValueError(f"No valid EDF windows loaded (got shape {X_windows.shape}). Check that EDF files exist under bids_root.")
 
-    keep_mask = build_quality_mask(X_windows, bad_amp_uv=bad_amp_uv, max_bad_channels=max_bad_channels)
+    bad_amp_candidates = [bad_amp_uv] if bad_amp_uv not in [200, 300, 400] else [200, 300, 400]
 
-    # Generate QC report with amplitude-only mask (before min-windows filter)
+    # QC report uses user-specified threshold
+    keep_mask = build_quality_mask(X_windows, bad_amp_uv=bad_amp_uv, max_bad_channels=max_bad_channels)
     qc_report = generate_qc_report(participants_df, groups, keep_mask, no_edf_subjects, min_windows_per_subject)
     qc_report.to_csv(os.path.join(output_dir, "qc_report.csv"), index=False)
 
-    kept_groups = groups[keep_mask]
+    # Validation uses most lenient candidate so stricter thresholds don't block the pipeline
+    lenient_mask = build_quality_mask(X_windows, bad_amp_uv=max(bad_amp_candidates), max_bad_channels=max_bad_channels)
+    kept_groups = groups[lenient_mask]
+    if len(kept_groups) == 0:
+        raise ValueError("No windows survive QC even at most lenient threshold")
     unique_groups, counts = np.unique(kept_groups, return_counts=True)
     valid_groups = unique_groups[counts >= min_windows_per_subject]
+    final_mask = lenient_mask & np.isin(groups, list(valid_groups))
 
-    if len(valid_groups) < len(unique_groups):
-        dropped = set(unique_groups) - set(valid_groups)
-        logger.warning(f"Dropping subjects with too few windows after QC: {dropped}")
-        keep_mask = keep_mask & np.isin(groups, list(valid_groups))
+    validate_post_qc_availability(groups, y_windows, final_mask, min_windows_per_subject)
 
-    validate_post_qc_availability(groups, y_windows, keep_mask, min_windows_per_subject)
-
-    # Save raw data for model selection (searches QC thresholds internally)
-    X_raw, y_raw, groups_raw = X_windows, y_windows, groups
-
-    X_windows = X_windows[keep_mask]
-    y_windows = y_windows[keep_mask]
-    groups = groups[keep_mask]
+    X_filtered = X_windows[final_mask]
+    y_filtered = y_windows[final_mask]
+    groups_filtered = groups[final_mask]
 
     subject_labels = {}
-    for g, label in zip(groups, y_windows):
+    for g, label in zip(groups_filtered, y_filtered):
         if g not in subject_labels:
             subject_labels[g] = label
     validate_subject_class_counts(subject_labels)
 
-    # Determine n_splits
-    unique_groups, first_idx = np.unique(groups, return_index=True)
-    group_labels = y_windows[first_idx]
+    # Determine n_splits from lenient-filtered data
+    unique_groups, first_idx = np.unique(groups_filtered, return_index=True)
+    group_labels = y_filtered[first_idx]
     if len(np.unique(group_labels)) > 1:
         n_splits = min(5, np.min(np.unique(group_labels, return_counts=True)[1]))
     else:
@@ -782,18 +783,16 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
     if n_splits < 2:
         n_splits = 2
 
-    bad_amp_candidates = [bad_amp_uv] if bad_amp_uv not in [200, 300, 400] else [200, 300, 400]
-
     t0 = time.time()
     cv_results = run_full_model_selection(
-        X_raw, y_raw, groups_raw, ch_names, resample_sfreq,
+        X_windows, y_windows, groups, ch_names, resample_sfreq,
         bad_amp_candidates=bad_amp_candidates,
         max_bad_channels=max_bad_channels,
         min_windows_per_subject=min_windows_per_subject,
         n_splits=n_splits, seed=seed)
 
     report = build_report(
-        X_raw, y_raw, groups_raw, cv_results, ch_names, resample_sfreq,
+        X_windows, y_windows, groups, cv_results, ch_names, resample_sfreq,
         bad_amp_candidates=bad_amp_candidates,
         max_bad_channels=max_bad_channels,
         min_windows_per_subject=min_windows_per_subject,
@@ -805,8 +804,8 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
         pd.DataFrame(cv_results["fold_results"]).to_csv(
             os.path.join(output_dir, "model_comparison.csv"), index=False)
 
-    # Feature importance on default-QC filtered data
-    features, feature_names = extract_features(X_windows, sfreq=resample_sfreq, ch_names=ch_names)
+    # Feature importance on lenient-QC filtered data
+    features, feature_names = extract_features(X_filtered, sfreq=resample_sfreq, ch_names=ch_names)
 
     # Stopping criteria
     conclusion = determine_conclusion(report, subject_labels)
@@ -816,7 +815,7 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=4)
         
-    f_scores, _ = f_classif(features, y_windows)
+    f_scores, _ = f_classif(features, y_filtered)
     feature_imp_df = pd.DataFrame({"feature": feature_names, "importance": f_scores})
     feature_imp_df.to_csv(os.path.join(output_dir, "feature_importance.csv"), index=False)
     
