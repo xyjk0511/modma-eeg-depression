@@ -123,3 +123,25 @@ def test_training_uses_inverse_window_count_subject_weights():
     w = compute_subject_balanced_sample_weights(np.array(["s1", "s1", "s2"]))
     assert np.isclose(w[0], w[1])
     assert np.isclose(w[0] + w[1], w[2])
+
+def test_report_contains_ci_and_permutation_pvalue():
+    from modma_mdd_real_experiment import build_report
+    cv_results = {
+        "subject_level_metrics": {
+            "balanced_accuracy": 0.75,
+            "roc_auc": 0.80,
+            "f1": 0.70,
+        },
+        "y_subj_true": np.array([0, 1, 0, 1, 0, 1]),
+        "y_subj_prob": np.array([0.2, 0.8, 0.4, 0.6, 0.3, 0.7]),
+        "subj_list": ["s1", "s2", "s3", "s4", "s5", "s6"]
+    }
+    X = np.random.randn(6, 5)
+    y = np.array([0, 1, 0, 1, 0, 1])
+    groups = np.array(["s1", "s2", "s3", "s4", "s5", "s6"])
+    
+    report = build_report(X, y, groups, cv_results, n_permutations=2, seed=42)
+    assert "balanced_accuracy_ci95" in report
+    assert "permutation_pvalue" in report
+    assert report["n_permutations"] == 2
+    assert report["permutation_strategy"] == "full_nested_cv_rerun"

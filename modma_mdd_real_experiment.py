@@ -221,6 +221,67 @@ def run_nested_group_cv(X, y, groups, n_splits=5):
         "subj_list": subj_list
     }
 
+def get_ci_bootstrap(y_true, y_pred, metric_fn, n_bootstraps=1000, seed=42):
+    rng = np.random.RandomState(seed)
+    scores = []
+    n = len(y_true)
+    for _ in range(n_bootstraps):
+        idx = rng.randint(0, n, n)
+        if len(np.unique(y_true[idx])) < 2 and metric_fn in [roc_auc_score]:
+            continue
+        scores.append(metric_fn(y_true[idx], y_pred[idx]))
+    if not scores:
+        return (0.0, 0.0)
+    return (float(np.percentile(scores, 2.5)), float(np.percentile(scores, 97.5)))
+
+def build_report(X, y, groups, cv_results, n_permutations=1000, seed=42):
+    y_subj_true = cv_results["y_subj_true"]
+    y_subj_prob = cv_results["y_subj_prob"]
+    y_subj_pred = (y_subj_prob >= 0.5).astype(int)
+    
+    ba_ci = get_ci_bootstrap(y_subj_true, y_subj_pred, balanced_accuracy_score, seed=seed)
+    
+    report = {
+        "primary_metric": "subject_level_balanced_accuracy",
+        "balanced_accuracy": cv_results["subject_level_metrics"]["balanced_accuracy"],
+        "balanced_accuracy_ci95": ba_ci,
+        "roc_auc": cv_results["subject_level_metrics"]["roc_auc"],
+        "f1": cv_results["subject_level_metrics"]["f1"],
+        "n_permutations": n_permutations,
+        "permutation_strategy": "full_nested_cv_rerun",
+        "seed": seed
+    }
+    
+    if n_permutations > 0:
+        rng = np.random.RandomState(seed)
+        unique_groups, first_idx = np.unique(groups, return_index=True)
+        group_labels = y[first_idx]
+        
+        permuted_bas = []
+        for i in range(n_permutations):
+            if (i+1) % 10 == 0:
+                logger.info(f"Running permutation {i+1}/{n_permutations}...")
+            shuffled_labels = rng.permutation(group_labels)
+            label_map = {g: l for g, l in zip(unique_groups, shuffled_labels)}
+            y_permuted = np.array([label_map[g] for g in groups])
+            
+            n_splits = min(5, np.min(np.unique(y_permuted, return_counts=True)[1]))
+            if n_splits < 2: n_splits = 2
+            
+            out = run_nested_group_cv(X, y_permuted, groups, n_splits=n_splits)
+            permuted_bas.append(out["subject_level_metrics"]["balanced_accuracy"])
+            
+        permuted_bas = np.array(permuted_bas)
+        actual_ba = report["balanced_accuracy"]
+        p_value = (np.sum(permuted_bas >= actual_ba) + 1.0) / (n_permutations + 1.0)
+        report["permutation_pvalue"] = p_value
+        report["permuted_bas_mean"] = float(np.mean(permuted_bas))
+        report["permuted_bas_std"] = float(np.std(permuted_bas))
+    else:
+        report["permutation_pvalue"] = float('nan')
+        
+    return report
+
 if __name__ == "__main__":
     args = parse_args()
     print(args)
