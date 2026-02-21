@@ -25,6 +25,19 @@ def build_quality_mask(X, bad_amp_uv=200.0, max_bad_channels=3):
     bad_ch_count = bad_ch.sum(axis=1)
     return bad_ch_count <= max_bad_channels
 
+def validate_post_qc_availability(groups, y, keep_mask, min_windows_per_subject=3):
+    kept_groups = groups[keep_mask]
+    unique_groups, counts = np.unique(kept_groups, return_counts=True)
+    for g, c in zip(unique_groups, counts):
+        if c < min_windows_per_subject:
+            raise ValueError(f"Subject {g} has only {c} windows after QC (min is {min_windows_per_subject} min_windows_per_subject)")
+
+def validate_subject_class_counts(subject_labels):
+    classes, counts = np.unique(list(subject_labels.values()), return_counts=True)
+    for c, count in zip(classes, counts):
+        if count < 2:
+            raise ValueError(f"Class {c} has only {count} subjects after QC (need at least 2 subjects per class)")
+
 if __name__ == "__main__":
     args = parse_args()
     print(args)

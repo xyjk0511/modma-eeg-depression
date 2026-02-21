@@ -34,3 +34,17 @@ def test_rejects_windows_with_saturated_amplitude():
     X[1, 0, 10] = 300e-6
     keep_mask = build_quality_mask(X, bad_amp_uv=200.0, max_bad_channels=0)
     assert keep_mask.tolist() == [True, False]
+
+def test_raises_when_subject_has_too_few_windows_after_qc():
+    from modma_mdd_real_experiment import validate_post_qc_availability
+    groups = np.array(["s1", "s1", "s2", "s3"])
+    y = np.array([1, 1, 0, 0])
+    keep_mask = np.array([True, False, True, True])
+    with pytest.raises(ValueError, match="min_windows_per_subject"):
+        validate_post_qc_availability(groups, y, keep_mask, min_windows_per_subject=2)
+
+def test_raises_when_class_has_too_few_subjects_after_qc():
+    from modma_mdd_real_experiment import validate_subject_class_counts
+    subject_labels = {"s1": 1, "s2": 0}
+    with pytest.raises(ValueError, match="at least 2 subjects per class"):
+        validate_subject_class_counts(subject_labels)
