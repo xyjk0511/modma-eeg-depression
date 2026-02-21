@@ -15,8 +15,8 @@ from sklearn.feature_selection import SelectKBest, f_classif
 from sklearn.decomposition import PCA
 from sklearn.svm import SVC
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import StratifiedGroupKFold
-from sklearn.metrics import roc_auc_score, f1_score, accuracy_score, balanced_accuracy_score, confusion_matrix
+from sklearn.model_selection import StratifiedGroupKFold, GridSearchCV
+from sklearn.metrics import roc_auc_score, f1_score, accuracy_score, balanced_accuracy_score, confusion_matrix, roc_curve
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +28,9 @@ def parse_args(argv=None):
     parser.add_argument("--n-permutations", type=int, default=1000, help="Number of permutations")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--min-windows-per-subject", type=int, default=3, help="Min windows per subject")
+    parser.add_argument("--crop-duration", type=float, default=60.0, help="Crop duration in seconds")
+    parser.add_argument("--window-sec", type=float, default=10.0, help="Window size in seconds")
+    parser.add_argument("--output-dir", type=str, default="results", help="Output directory")
     
     return parser.parse_args(argv)
 
@@ -156,9 +159,9 @@ def build_feature_model_pipeline(model_name="svm", reducer="none"):
         steps.append(("selectkbest", SelectKBest(f_classif, k=64)))
         
     if model_name == "svm":
-        steps.append(("clf", SVC(kernel="rbf", class_weight="balanced", probability=True)))
+        steps.append(("clf", SVC(kernel="rbf", class_weight="balanced", probability=True, random_state=42)))
     elif model_name == "logistic":
-        steps.append(("clf", LogisticRegression(class_weight="balanced", max_iter=1000)))
+        steps.append(("clf", LogisticRegression(class_weight="balanced", max_iter=1000, random_state=42)))
     else:
         raise ValueError(f"Unknown classifier {model_name}")
         
@@ -190,8 +193,23 @@ def run_nested_group_cv(X, y, groups, n_splits=5):
         g_train = groups[train_ix]
         
         sample_weights = compute_subject_balanced_sample_weights(g_train)
-        
-        pipe = build_feature_model_pipeline(model_name="svm", reducer="none")
+
+        # Inner CV for hyperparameter tuning
+        train_unique_groups, train_first_idx = np.unique(g_train, return_index=True)
+        train_group_labels = y_train[train_first_idx]
+        min_class_in_train = np.min(np.bincount(train_group_labels)) if len(np.unique(train_group_labels)) > 1 else 0
+
+        base_pipe = build_feature_model_pipeline(model_name="svm", reducer="none")
+        if min_class_in_train >= 3:
+            inner_cv = StratifiedGroupKFold(n_splits=min(3, min_class_in_train))
+            param_grid = {"clf__C": [0.1, 1.0, 10.0]}
+            grid = GridSearchCV(base_pipe, param_grid, cv=inner_cv, scoring="balanced_accuracy")
+            grid.fit(X_train, y_train, groups=g_train)
+            best_C = grid.best_params_["clf__C"]
+            pipe = build_feature_model_pipeline(model_name="svm", reducer="none")
+            pipe.named_steps["clf"].C = best_C
+        else:
+            pipe = base_pipe
         pipe.fit(X_train, y_train, clf__sample_weight=sample_weights)
         
         preds = pipe.predict_proba(X_test)[:, 1]
@@ -293,12 +311,14 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
     participants_path = os.path.join(bids_root, "participants.tsv")
     
     if not os.path.exists(participants_path):
-        participants_df = load_participants("fake.tsv")
-    else:
-        participants_df = load_participants(participants_path)
+        raise FileNotFoundError(f"participants.tsv not found at {participants_path}")
+    participants_df = load_participants(participants_path)
         
     if max_subjects is not None:
-        participants_df = participants_df.head(max_subjects)
+        half = max_subjects // 2
+        mdd = participants_df[participants_df["group"] == "MDD"].head(half)
+        hc = participants_df[participants_df["group"] == "HC"].head(max_subjects - len(mdd))
+        participants_df = pd.concat([mdd, hc], ignore_index=True)
         
     X_windows, y_windows, groups = load_windows(
         participants_df, 
@@ -309,12 +329,28 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
     )
     
     keep_mask = build_quality_mask(X_windows)
+    
+    kept_groups = groups[keep_mask]
+    unique_groups, counts = np.unique(kept_groups, return_counts=True)
+    valid_groups = unique_groups[counts >= min_windows_per_subject]
+    
+    if len(valid_groups) < len(unique_groups):
+        dropped = set(unique_groups) - set(valid_groups)
+        logger.warning(f"Dropping subjects with too few windows after QC: {dropped}")
+        keep_mask = keep_mask & np.isin(groups, list(valid_groups))
+        
+    validate_post_qc_availability(groups, y_windows, keep_mask, min_windows_per_subject)
+    
     X_windows = X_windows[keep_mask]
     y_windows = y_windows[keep_mask]
     groups = groups[keep_mask]
-    
-    validate_post_qc_availability(groups, y_windows, keep_mask, min_windows_per_subject)
-    
+
+    subject_labels = {}
+    for g, label in zip(groups, y_windows):
+        if g not in subject_labels:
+            subject_labels[g] = label
+    validate_subject_class_counts(subject_labels)
+
     features, feature_names = extract_features(X_windows, sfreq=resample_sfreq)
     
     unique_groups, first_idx = np.unique(groups, return_index=True)
@@ -333,16 +369,30 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
     with open(metrics_path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=4)
         
-    feature_imp_df = pd.DataFrame({"feature": feature_names, "importance": np.random.rand(len(feature_names))})
+    f_scores, _ = f_classif(features, y_windows)
+    feature_imp_df = pd.DataFrame({"feature": feature_names, "importance": f_scores})
     feature_imp_df.to_csv(os.path.join(output_dir, "feature_importance.csv"), index=False)
     
+    y_subj_true = cv_results["y_subj_true"]
+    y_subj_prob = cv_results["y_subj_prob"]
+    fpr, tpr, _ = roc_curve(y_subj_true, y_subj_prob)
     fig, ax = plt.subplots()
-    ax.plot([0, 1], [0, 1])
+    ax.plot(fpr, tpr, label=f"AUC={report['roc_auc']:.2f}")
+    ax.plot([0, 1], [0, 1], "--", color="gray")
+    ax.set_xlabel("FPR")
+    ax.set_ylabel("TPR")
+    ax.legend()
     fig.savefig(os.path.join(output_dir, "roc_curve.png"))
     plt.close(fig)
     
+    y_subj_pred = (y_subj_prob >= 0.5).astype(int)
+    cm = confusion_matrix(y_subj_true, y_subj_pred)
     fig, ax = plt.subplots()
-    ax.matshow(np.eye(2))
+    ax.matshow(cm, cmap="Blues")
+    for (i, j), val in np.ndenumerate(cm):
+        ax.text(j, i, str(val), ha="center", va="center")
+    ax.set_xlabel("Predicted")
+    ax.set_ylabel("True")
     fig.savefig(os.path.join(output_dir, "confusion_matrix.png"))
     plt.close(fig)
     
@@ -350,4 +400,15 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
 
 if __name__ == "__main__":
     args = parse_args()
-    print(args)
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    run_main_with_output_dir(
+        bids_root=args.bids_root,
+        output_dir=args.output_dir,
+        max_subjects=args.max_subjects,
+        resample_sfreq=args.resample_sfreq,
+        n_permutations=args.n_permutations,
+        seed=args.seed,
+        min_windows_per_subject=args.min_windows_per_subject,
+        window_sec=args.window_sec,
+        crop_duration=args.crop_duration
+    )
