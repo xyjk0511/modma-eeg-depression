@@ -238,16 +238,22 @@ def test_stratified_sampling_ensures_both_classes():
 
 def test_feature_importance_not_random():
     """Critical #2: importance must come from f_classif, not np.random."""
-    import pandas as pd
     from modma_mdd_real_experiment import extract_features
     from sklearn.feature_selection import f_classif as real_f_classif
+    import inspect, modma_mdd_real_experiment as mod
 
+    # Verify f_classif is called in run_main_with_output_dir (not np.random.rand)
+    src = inspect.getsource(mod.run_main_with_output_dir)
+    assert "f_classif(features" in src
+    assert "np.random.rand" not in src
+
+    # Verify f_classif produces deterministic, data-dependent scores
     X = np.random.RandomState(0).randn(20, 4, 500)
     y = np.array([0]*10 + [1]*10)
     feats, names = extract_features(X, sfreq=125.0)
-    expected_f, _ = real_f_classif(feats, y)
-    # The pipeline should produce identical f-scores
-    np.testing.assert_array_almost_equal(expected_f, expected_f)
+    f1, _ = real_f_classif(feats, y)
+    f2, _ = real_f_classif(feats, y)
+    np.testing.assert_array_almost_equal(f1, f2)
 
 
 def test_missing_participants_tsv_raises():
@@ -310,3 +316,27 @@ def test_inner_cv_tunes_hyperparameters():
     from modma_mdd_real_experiment import run_nested_group_cv
     src = inspect.getsource(run_nested_group_cv)
     assert "GridSearchCV" in src
+
+
+def test_no_edf_files_raises_clear_error(tmp_path, monkeypatch):
+    """No valid EDF → clear ValueError, not AxisError."""
+    from modma_mdd_real_experiment import run_main_with_output_dir
+    import modma_mdd_real_experiment as mod
+    import pandas as pd
+
+    monkeypatch.setattr(mod, "load_participants",
+        lambda p: pd.DataFrame({"participant_id": ["s1", "s2"], "group": ["MDD", "HC"]}))
+    _real = os.path.exists
+    monkeypatch.setattr(os.path, "exists", lambda p: True if "participants" in p else _real(p))
+
+    with pytest.raises(ValueError, match="No valid EDF windows loaded"):
+        run_main_with_output_dir(str(tmp_path), str(tmp_path / "out"), max_subjects=None,
+            resample_sfreq=125, n_permutations=0, seed=42,
+            min_windows_per_subject=1, window_sec=10, crop_duration=60)
+
+
+def test_single_class_all_subjects_raises():
+    """validate_subject_class_counts must reject single-class data."""
+    from modma_mdd_real_experiment import validate_subject_class_counts
+    with pytest.raises(ValueError, match="need at least 2 distinct classes"):
+        validate_subject_class_counts({"s1": 0, "s2": 0, "s3": 0})

@@ -55,6 +55,8 @@ def validate_post_qc_availability(groups, y, keep_mask, min_windows_per_subject=
 
 def validate_subject_class_counts(subject_labels):
     classes, counts = np.unique(list(subject_labels.values()), return_counts=True)
+    if len(classes) < 2:
+        raise ValueError(f"Only {len(classes)} class(es) found after QC (need at least 2 distinct classes)")
     for c, count in zip(classes, counts):
         if count < 2:
             raise ValueError(f"Class {c} has only {count} subjects after QC (need at least 2 subjects per class)")
@@ -321,13 +323,16 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
         participants_df = pd.concat([mdd, hc], ignore_index=True)
         
     X_windows, y_windows, groups = load_windows(
-        participants_df, 
-        bids_root=bids_root, 
-        window_sec=window_sec, 
-        resample_sfreq=resample_sfreq, 
+        participants_df,
+        bids_root=bids_root,
+        window_sec=window_sec,
+        resample_sfreq=resample_sfreq,
         crop_duration=crop_duration
     )
-    
+
+    if X_windows.ndim != 3 or len(X_windows) == 0:
+        raise ValueError(f"No valid EDF windows loaded (got shape {X_windows.shape}). Check that EDF files exist under bids_root.")
+
     keep_mask = build_quality_mask(X_windows)
     
     kept_groups = groups[keep_mask]
