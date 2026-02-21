@@ -48,3 +48,37 @@ def test_raises_when_class_has_too_few_subjects_after_qc():
     subject_labels = {"s1": 1, "s2": 0}
     with pytest.raises(ValueError, match="at least 2 subjects per class"):
         validate_subject_class_counts(subject_labels)
+
+def test_window_extraction_returns_labels_and_groups(monkeypatch):
+    from modma_mdd_real_experiment import load_windows
+    import mne
+    import pandas as pd
+    
+    class FakeRaw:
+        def __init__(self, *args, **kwargs):
+            self.info = {"sfreq": 250.0, "ch_names": ["Fp1", "Fp2"]}
+            self.times = np.arange(0, 30, 1/250.0)
+        def load_data(self):
+            return self
+        def copy(self):
+            return self
+        def crop(self, *args, **kwargs):
+            return self
+        def filter(self, *args, **kwargs):
+            return self
+        def resample(self, sfreq, *args, **kwargs):
+            self.info["sfreq"] = sfreq
+            return self
+        def get_data(self, units="uV"):
+            return np.ones((2, int(30 * self.info["sfreq"])))
+    
+    monkeypatch.setattr(mne.io, "read_raw_edf", FakeRaw)
+    import glob
+    monkeypatch.setattr(glob, "glob", lambda x: ["fake.edf"])
+    
+    participants_df = pd.DataFrame(
+        {"participant_id": ["sub-001", "sub-025"], "group": ["MDD", "HC"]}
+    )
+    X, y, groups = load_windows(participants_df, bids_root="D:/fake", window_sec=10, resample_sfreq=125.0)
+    assert len(X) == len(y) == len(groups)
+    assert len(set(groups)) > 1
