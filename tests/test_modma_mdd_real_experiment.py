@@ -82,3 +82,16 @@ def test_window_extraction_returns_labels_and_groups(monkeypatch):
     X, y, groups = load_windows(participants_df, bids_root="D:/fake", window_sec=10, resample_sfreq=125.0)
     assert len(X) == len(y) == len(groups)
     assert len(set(groups)) > 1
+
+def test_feature_matrix_has_expected_blocks():
+    from modma_mdd_real_experiment import extract_features
+    X_windows = np.random.randn(2, 128, 1250)
+    feats_X, feat_names = extract_features(X_windows, sfreq=125.0)
+    assert any("alpha_asymmetry" in name for name in feat_names)
+    assert feats_X.shape[0] == len(X_windows)
+
+def test_pipeline_contains_scaler_and_optional_reducer():
+    from modma_mdd_real_experiment import build_feature_model_pipeline
+    pipe = build_feature_model_pipeline(model_name="svm", reducer="pca")
+    assert "scaler" in pipe.named_steps
+    assert "pca" in pipe.named_steps

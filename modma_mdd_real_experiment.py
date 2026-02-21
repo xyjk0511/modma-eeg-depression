@@ -6,6 +6,13 @@ import glob
 import logging
 import warnings
 import mne
+from scipy.signal import welch
+from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
+from sklearn.feature_selection import SelectKBest, f_classif
+from sklearn.decomposition import PCA
+from sklearn.svm import SVC
+from sklearn.linear_model import LogisticRegression
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +100,65 @@ def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_du
             logger.error(f"处理 {sub_id} 时发生错误: {e}")
             
     return np.array(all_epochs), np.array(labels), np.array(groups)
+
+def extract_features(X, sfreq):
+    n_win, n_ch, n_times = X.shape
+    features = []
+    feature_names = []
+    
+    std_feat = np.std(X, axis=2)
+    features.append(std_feat)
+    feature_names.extend([f"ch{ch}_std" for ch in range(n_ch)])
+    
+    nperseg = min(X.shape[2], int(sfreq * 2))
+    freqs, psd = welch(X, fs=sfreq, axis=2, nperseg=nperseg)
+    
+    bands = {"delta": (1, 4), "theta": (4, 8), "alpha": (8, 13), "beta": (13, 30)}
+    psd_feats = []
+    for band_name, (fmin, fmax) in bands.items():
+        band_mask = (freqs >= fmin) & (freqs <= fmax)
+        band_power = np.mean(psd[:, :, band_mask], axis=2)
+        psd_feats.append(band_power)
+        feature_names.extend([f"ch{ch}_{band_name}" for ch in range(n_ch)])
+        
+    total_power = np.sum(psd, axis=2)
+    for i, band_name in enumerate(bands.keys()):
+        rel_power = psd_feats[i] / (total_power + 1e-10)
+        features.append(rel_power)
+        feature_names.extend([f"ch{ch}_{band_name}_rel" for ch in range(n_ch)])
+        
+    features.extend(psd_feats)
+        
+    alpha_power = psd_feats[2]
+    if n_ch >= 124:
+        f3_idx, f4_idx = 23, 123
+        f3_alpha = alpha_power[:, f3_idx]
+        f4_alpha = alpha_power[:, f4_idx]
+        denom = f4_alpha + f3_alpha
+        alpha_asymmetry = np.where(denom != 0, (f4_alpha - f3_alpha)/denom, 0.0)
+        features.append(alpha_asymmetry[:, np.newaxis])
+    else:
+        features.append(np.zeros((n_win, 1)))
+        
+    feature_names.append("alpha_asymmetry")
+    X_features = np.column_stack(features)
+    return X_features, feature_names
+
+def build_feature_model_pipeline(model_name="svm", reducer="none"):
+    steps = [("scaler", StandardScaler())]
+    if reducer == "pca":
+        steps.append(("pca", PCA(n_components=0.95)))
+    elif reducer == "selectkbest":
+        steps.append(("selectkbest", SelectKBest(f_classif, k=64)))
+        
+    if model_name == "svm":
+        steps.append(("clf", SVC(kernel="rbf", class_weight="balanced", probability=True)))
+    elif model_name == "logistic":
+        steps.append(("clf", LogisticRegression(class_weight="balanced", max_iter=1000)))
+    else:
+        raise ValueError(f"Unknown classifier {model_name}")
+        
+    return Pipeline(steps)
 
 if __name__ == "__main__":
     args = parse_args()
