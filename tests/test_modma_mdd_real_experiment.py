@@ -471,6 +471,34 @@ def test_positive_conclusion_when_all_criteria_met():
     assert result["conclusion"] == "positive"
 
 
+def test_conclusion_treats_zero_permutation_pvalue_as_valid():
+    from modma_mdd_real_experiment import determine_conclusion
+    report = {
+        "balanced_accuracy": 0.70,
+        "balanced_accuracy_ci95": (0.60, 0.85),
+        "permutation_pvalue": 0.0,
+    }
+    subject_labels = {f"s{i}": i % 2 for i in range(12)}
+    result = determine_conclusion(report, subject_labels)
+    assert result["conclusion"] == "positive"
+    assert result["criteria"]["p_lt_0.05"] is True
+    assert result["values"]["permutation_pvalue"] == 0.0
+
+
+def test_conclusion_keeps_null_permutation_pvalue_for_reporting():
+    from modma_mdd_real_experiment import determine_conclusion
+    report = {
+        "balanced_accuracy": 0.70,
+        "balanced_accuracy_ci95": (0.60, 0.85),
+        "permutation_pvalue": None,
+    }
+    subject_labels = {f"s{i}": i % 2 for i in range(12)}
+    result = determine_conclusion(report, subject_labels)
+    assert result["conclusion"] == "negative"
+    assert result["criteria"]["p_lt_0.05"] is False
+    assert result["values"]["permutation_pvalue"] is None
+
+
 def test_full_model_selection_raises_on_all_empty_folds(monkeypatch):
     """run_full_model_selection must raise clear ValueError when all folds fail."""
     from modma_mdd_real_experiment import run_full_model_selection
