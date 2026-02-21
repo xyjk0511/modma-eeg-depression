@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+*.log
+.pytest_cache/
+854301_EEG_128Channels_ERP_Lanzhou_2015/
+854301_EEG_128Channels_Resting_Lanzhou_2015/
+854301_EEG_3Channels_Resting_Lanzhou_2015/
+MODMA_EEG_BIDS_format/
