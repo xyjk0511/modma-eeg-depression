@@ -700,23 +700,24 @@ def determine_conclusion(report, subject_labels):
     """Strict stopping criteria: all must hold for positive conclusion."""
     ba = report.get("balanced_accuracy", 0)
     ci = report.get("balanced_accuracy_ci95", (0, 0))
-    p = report.get("permutation_pvalue") or 1.0
+    p = report.get("permutation_pvalue")
+    p_passes = (p is not None and p < 0.05)
     classes, counts = np.unique(list(subject_labels.values()), return_counts=True)
     min_per_class = int(min(counts)) if len(counts) > 0 else 0
 
-    positive = (ba > 0.6 and ci[0] > 0.5 and p < 0.05 and min_per_class >= 5)
+    positive = (ba > 0.6 and ci[0] > 0.5 and p_passes and min_per_class >= 5)
     return {
         "conclusion": "positive" if positive else "negative",
         "criteria": {
             "ba_gt_0.6": bool(ba > 0.6),
             "ci_lower_gt_0.5": bool(ci[0] > 0.5),
-            "p_lt_0.05": bool(p < 0.05),
+            "p_lt_0.05": bool(p_passes),
             "min_per_class_gte_5": bool(min_per_class >= 5),
         },
         "values": {
             "balanced_accuracy": float(ba),
             "ci_lower": float(ci[0]),
-            "permutation_pvalue": float(p),
+            "permutation_pvalue": p,
             "min_subjects_per_class": min_per_class,
         }
     }
