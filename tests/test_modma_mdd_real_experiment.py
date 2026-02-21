@@ -80,7 +80,7 @@ def test_window_extraction_returns_labels_and_groups(monkeypatch):
     participants_df = pd.DataFrame(
         {"participant_id": ["sub-001", "sub-025"], "group": ["MDD", "HC"]}
     )
-    X, y, groups = load_windows(participants_df, bids_root="D:/fake", window_sec=10, resample_sfreq=125.0)
+    X, y, groups, no_edf, ch_names = load_windows(participants_df, bids_root="D:/fake", window_sec=10, resample_sfreq=125.0)
     assert len(X) == len(y) == len(groups)
     assert len(set(groups)) > 1
 
@@ -137,15 +137,17 @@ def test_report_contains_ci_and_permutation_pvalue():
         "y_subj_prob": np.array([0.2, 0.8, 0.4, 0.6, 0.3, 0.7]),
         "subj_list": ["s1", "s2", "s3", "s4", "s5", "s6"]
     }
-    X = np.random.randn(6, 5)
+    X = np.random.randn(6, 4, 500)
     y = np.array([0, 1, 0, 1, 0, 1])
     groups = np.array(["s1", "s2", "s3", "s4", "s5", "s6"])
-    
-    report = build_report(X, y, groups, cv_results, n_permutations=2, seed=42)
+    ch_names = [f"ch{i}" for i in range(4)]
+
+    report = build_report(X, y, groups, cv_results, ch_names=ch_names, sfreq=125.0,
+                          n_permutations=2, seed=42)
     assert "balanced_accuracy_ci95" in report
     assert "permutation_pvalue" in report
     assert report["n_permutations"] == 2
-    assert report["permutation_strategy"] == "full_nested_cv_rerun"
+    assert report["permutation_strategy"] == "full_model_selection_rerun"
 
 def test_main_writes_metrics_json(tmp_path, monkeypatch):
     from modma_mdd_real_experiment import run_main_with_output_dir
@@ -345,3 +347,125 @@ def test_single_class_all_subjects_raises():
     from modma_mdd_real_experiment import validate_subject_class_counts
     with pytest.raises(ValueError, match="need at least 2 distinct classes"):
         validate_subject_class_counts({"s1": 0, "s2": 0, "s3": 0})
+
+
+def test_qc_report_has_detailed_drop_reasons():
+    from modma_mdd_real_experiment import generate_qc_report
+    import pandas as pd
+    participants_df = pd.DataFrame({
+        "participant_id": ["s1", "s2", "s3", "s4"],
+        "group": ["MDD", "HC", "MDD", "HC"]
+    })
+    groups = np.array(["s1", "s1", "s1", "s2", "s2", "s2", "s3"])
+    # s1: 3 windows, all kept; s2: 3 windows, none kept; s3: 1 window, kept but < min
+    keep_mask = np.array([True, True, True, False, False, False, True])
+    no_edf = [("s4", "HC")]
+    report = generate_qc_report(participants_df, groups, keep_mask, no_edf, min_windows_per_subject=3)
+    reasons = dict(zip(report["subject"], report["drop_reason"]))
+    assert reasons["s4"] == "no_edf"
+    assert reasons["s2"] == "dropped_by_amp"
+    assert reasons["s3"] == "dropped_by_min_windows"
+    assert reasons["s1"] == "kept"
+    assert set(report.columns) == {"subject", "label", "raw_windows", "kept_windows", "drop_reason"}
+
+
+def test_cli_accepts_bad_amp_uv_and_max_bad_channels():
+    args = parse_args(["--bids-root", "fake", "--bad-amp-uv", "300", "--max-bad-channels", "5"])
+    assert args.bad_amp_uv == 300.0
+    assert args.max_bad_channels == 5
+
+
+def test_region_mapping_invariant_to_channel_order():
+    from modma_mdd_real_experiment import extract_features, build_region_indices
+    rng = np.random.RandomState(0)
+    ch_names = [f"E{i}" for i in range(1, 129)]
+    X = rng.randn(3, 128, 500)
+    feats1, names1 = extract_features(X, sfreq=125.0, ch_names=ch_names)
+    # Shuffle channel order
+    perm = rng.permutation(128)
+    X2 = X[:, perm, :]
+    ch_names2 = [ch_names[i] for i in perm]
+    feats2, names2 = extract_features(X2, sfreq=125.0, ch_names=ch_names2)
+    assert names1 == names2
+    np.testing.assert_allclose(feats1, feats2, rtol=1e-5)
+
+
+def test_region_aggregation_reduces_dimensionality():
+    from modma_mdd_real_experiment import extract_features
+    ch_names = [f"E{i}" for i in range(1, 129)]
+    X = np.random.RandomState(1).randn(2, 128, 500)
+    feats, names = extract_features(X, sfreq=125.0, ch_names=ch_names)
+    # Should be ~46 features (5 regions * 9 + 1 asymmetry), not 1153
+    assert feats.shape[1] < 150
+    assert feats.shape[1] == len(names)
+
+
+def test_de_features_shape():
+    from modma_mdd_real_experiment import compute_de_features, build_region_indices
+    ch_names = [f"E{i}" for i in range(1, 129)]
+    region_idx = build_region_indices(ch_names)
+    X = np.random.RandomState(0).randn(3, 128, 500)
+    feats, names = compute_de_features(X, sfreq=125.0, region_idx=region_idx)
+    assert feats.shape == (3, 20)  # 5 regions * 4 bands
+    assert len(names) == 20
+
+
+def test_hjorth_features_shape():
+    from modma_mdd_real_experiment import compute_hjorth_features, build_region_indices
+    ch_names = [f"E{i}" for i in range(1, 129)]
+    region_idx = build_region_indices(ch_names)
+    X = np.random.RandomState(0).randn(3, 128, 500)
+    feats, names = compute_hjorth_features(X, region_idx=region_idx)
+    assert feats.shape == (3, 15)  # 5 regions * 3 (activity, mobility, complexity)
+    assert len(names) == 15
+
+
+def test_permutation_reruns_full_selection():
+    """Permutation must rerun full model selection, not just nested CV."""
+    import inspect
+    from modma_mdd_real_experiment import build_report
+    src = inspect.getsource(build_report)
+    assert "run_full_model_selection" in src
+    assert "run_nested_group_cv" not in src
+
+
+def test_full_model_selection_returns_fold_results():
+    from modma_mdd_real_experiment import run_full_model_selection
+    rng = np.random.RandomState(0)
+    X = rng.randn(20, 4, 500)
+    y = np.array([0]*10 + [1]*10)
+    groups = np.array([f"s{i//2}" for i in range(20)])
+    ch = [f"ch{i}" for i in range(4)]
+    out = run_full_model_selection(X, y, groups, ch, 125.0,
+                                   bad_amp_candidates=(9999,),
+                                   max_bad_channels=999,
+                                   min_windows_per_subject=2,
+                                   n_splits=2, seed=42)
+    assert "fold_results" in out
+    assert "subject_level_metrics" in out
+    assert len(out["fold_results"]) > 0
+
+
+def test_negative_conclusion_when_ci_lower_at_chance():
+    from modma_mdd_real_experiment import determine_conclusion
+    report = {
+        "balanced_accuracy": 0.55,
+        "balanced_accuracy_ci95": (0.40, 0.70),
+        "permutation_pvalue": 0.30,
+    }
+    subject_labels = {f"s{i}": i % 2 for i in range(10)}
+    result = determine_conclusion(report, subject_labels)
+    assert result["conclusion"] == "negative"
+    assert result["criteria"]["ci_lower_gt_0.5"] is False
+
+
+def test_positive_conclusion_when_all_criteria_met():
+    from modma_mdd_real_experiment import determine_conclusion
+    report = {
+        "balanced_accuracy": 0.75,
+        "balanced_accuracy_ci95": (0.60, 0.90),
+        "permutation_pvalue": 0.01,
+    }
+    subject_labels = {f"s{i}": i % 2 for i in range(12)}
+    result = determine_conclusion(report, subject_labels)
+    assert result["conclusion"] == "positive"
