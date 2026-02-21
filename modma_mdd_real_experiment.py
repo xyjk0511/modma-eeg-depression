@@ -1,5 +1,6 @@
 import argparse
 import pandas as pd
+import numpy as np
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="MODMA MDD vs HC Classification")
@@ -17,6 +18,12 @@ def load_participants(path):
     df["participant_id"] = df["participant_id"].astype(str).str.strip()
     df["group"] = df["group"].astype(str).str.strip()
     return df[df["group"].isin(["MDD", "HC"])][["participant_id", "group"]]
+
+def build_quality_mask(X, bad_amp_uv=200.0, max_bad_channels=3):
+    thr_v = bad_amp_uv * 1e-6
+    bad_ch = np.any(np.abs(X) > thr_v, axis=2)
+    bad_ch_count = bad_ch.sum(axis=1)
+    return bad_ch_count <= max_bad_channels
 
 if __name__ == "__main__":
     args = parse_args()

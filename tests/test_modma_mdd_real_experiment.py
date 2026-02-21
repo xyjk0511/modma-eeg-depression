@@ -1,4 +1,5 @@
 import pytest
+import numpy as np
 from modma_mdd_real_experiment import parse_args
 
 def test_cli_parses_required_arguments():
@@ -25,3 +26,11 @@ def test_load_participants_handles_irregular_whitespace(tmp_path):
     tsv.write_text("participant_id   group\nsub-001   MDD\nsub-025      HC\n", encoding="utf-8")
     df = load_participants(tsv)
     assert set(df["group"]) == {"MDD", "HC"}
+
+def test_rejects_windows_with_saturated_amplitude():
+    from modma_mdd_real_experiment import build_quality_mask
+    # MNE unit is Volt. 200 uV threshold must be 200e-6.
+    X = np.zeros((2, 128, 1250))
+    X[1, 0, 10] = 300e-6
+    keep_mask = build_quality_mask(X, bad_amp_uv=200.0, max_bad_channels=0)
+    assert keep_mask.tolist() == [True, False]
