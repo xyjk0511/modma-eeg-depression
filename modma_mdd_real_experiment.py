@@ -523,6 +523,9 @@ def run_full_model_selection(X_raw, y, groups, ch_names, sfreq,
 
         fold_results.append({"fold": fold_i, **best_cfg, "inner_score": best_score})
 
+    if not y_true_subject:
+        raise ValueError("No valid outer-fold predictions after QC/model selection")
+
     subj_list = list(y_true_subject.keys())
     y_subj_true = np.array([y_true_subject[g] for g in subj_list])
     y_subj_prob = np.array([np.mean(y_pred_subject_probs[g]) for g in subj_list])
@@ -685,11 +688,10 @@ def build_report(X_raw, y, groups, cv_results, ch_names, sfreq,
             report["permuted_bas_mean"] = float(np.mean(permuted_bas))
             report["permuted_bas_std"] = float(np.std(permuted_bas))
         else:
-            logger.warning("All permutations failed; p-value is NaN")
-            report["permutation_pvalue"] = float('nan')
+            report["permutation_pvalue"] = None
     else:
         report["effective_permutations"] = 0
-        report["permutation_pvalue"] = float('nan')
+        report["permutation_pvalue"] = None
 
     return report
 
@@ -698,7 +700,7 @@ def determine_conclusion(report, subject_labels):
     """Strict stopping criteria: all must hold for positive conclusion."""
     ba = report.get("balanced_accuracy", 0)
     ci = report.get("balanced_accuracy_ci95", (0, 0))
-    p = report.get("permutation_pvalue", 1.0)
+    p = report.get("permutation_pvalue") or 1.0
     classes, counts = np.unique(list(subject_labels.values()), return_counts=True)
     min_per_class = int(min(counts)) if len(counts) > 0 else 0
 

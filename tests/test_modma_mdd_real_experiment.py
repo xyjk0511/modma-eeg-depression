@@ -469,3 +469,27 @@ def test_positive_conclusion_when_all_criteria_met():
     subject_labels = {f"s{i}": i % 2 for i in range(12)}
     result = determine_conclusion(report, subject_labels)
     assert result["conclusion"] == "positive"
+
+
+def test_full_model_selection_raises_on_all_empty_folds(monkeypatch):
+    """run_full_model_selection must raise clear ValueError when all folds fail."""
+    from modma_mdd_real_experiment import run_full_model_selection
+    import modma_mdd_real_experiment as mod
+    rng = np.random.RandomState(0)
+    X = rng.randn(20, 4, 500) * 1e-6
+    y = np.array([0]*10 + [1]*10)
+    groups = np.array([f"s{i//2}" for i in range(20)])
+    # Let initial call succeed, then return None for all subsequent calls
+    real_fn = mod._apply_qc_and_extract
+    call_count = {"n": 0}
+    def fake_apply(*args, **kwargs):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            return real_fn(*args, **kwargs)
+        return None
+    monkeypatch.setattr(mod, "_apply_qc_and_extract", fake_apply)
+    with pytest.raises(ValueError, match="No valid outer-fold predictions"):
+        run_full_model_selection(X, y, groups, [f"c{i}" for i in range(4)], 125.0,
+                                 bad_amp_candidates=(9999,),
+                                 min_windows_per_subject=2,
+                                 n_splits=2, seed=42)
