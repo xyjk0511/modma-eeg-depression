@@ -95,3 +95,31 @@ def test_pipeline_contains_scaler_and_optional_reducer():
     pipe = build_feature_model_pipeline(model_name="svm", reducer="pca")
     assert "scaler" in pipe.named_steps
     assert "pca" in pipe.named_steps
+
+def test_evaluation_never_mixes_subjects_between_train_test():
+    from modma_mdd_real_experiment import run_nested_group_cv
+    X = np.random.randn(10, 5)
+    y = np.array([0, 1] * 5)
+    groups = np.array(["s1", "s1", "s2", "s2", "s3", "s3", "s4", "s4", "s5", "s5"])
+    out = run_nested_group_cv(X, y, groups, n_splits=5)
+    assert out["leakage_detected"] is False
+    assert "subject_level_metrics" in out
+
+def test_classifier_uses_balanced_class_weights():
+    from modma_mdd_real_experiment import build_feature_model_pipeline
+    pipe = build_feature_model_pipeline(model_name="svm", reducer="none")
+    assert pipe.named_steps["clf"].class_weight == "balanced"
+
+def test_subject_level_aggregation_is_used_for_primary_metrics():
+    from modma_mdd_real_experiment import run_nested_group_cv
+    X = np.random.randn(10, 5)
+    y = np.array([0, 1] * 5)
+    groups = np.array(["s1", "s1", "s2", "s2", "s3", "s3", "s4", "s4", "s5", "s5"])
+    out = run_nested_group_cv(X, y, groups, n_splits=5)
+    assert out["primary_metric_level"] == "subject"
+
+def test_training_uses_inverse_window_count_subject_weights():
+    from modma_mdd_real_experiment import compute_subject_balanced_sample_weights
+    w = compute_subject_balanced_sample_weights(np.array(["s1", "s1", "s2"]))
+    assert np.isclose(w[0], w[1])
+    assert np.isclose(w[0] + w[1], w[2])

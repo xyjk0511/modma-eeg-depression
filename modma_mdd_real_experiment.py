@@ -13,6 +13,8 @@ from sklearn.feature_selection import SelectKBest, f_classif
 from sklearn.decomposition import PCA
 from sklearn.svm import SVC
 from sklearn.linear_model import LogisticRegression
+from sklearn.model_selection import StratifiedGroupKFold
+from sklearn.metrics import roc_auc_score, f1_score, accuracy_score, balanced_accuracy_score, confusion_matrix
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +161,65 @@ def build_feature_model_pipeline(model_name="svm", reducer="none"):
         raise ValueError(f"Unknown classifier {model_name}")
         
     return Pipeline(steps)
+
+def compute_subject_balanced_sample_weights(groups):
+    unique_groups, counts = np.unique(groups, return_counts=True)
+    weight_map = {g: 1.0 / c for g, c in zip(unique_groups, counts)}
+    w = np.array([weight_map[g] for g in groups])
+    return w
+
+def run_nested_group_cv(X, y, groups, n_splits=5):
+    cv_outer = StratifiedGroupKFold(n_splits=n_splits)
+    
+    y_pred_probs = np.zeros(len(y))
+    y_true_subject = {}
+    y_pred_subject_probs = {}
+    
+    leakage_detected = False
+    
+    for train_ix, test_ix in cv_outer.split(X, y, groups=groups):
+        train_groups = set(groups[train_ix])
+        test_groups = set(groups[test_ix])
+        if not train_groups.isdisjoint(test_groups):
+            leakage_detected = True
+            
+        X_train, X_test = X[train_ix], X[test_ix]
+        y_train, y_test = y[train_ix], y[test_ix]
+        g_train = groups[train_ix]
+        
+        sample_weights = compute_subject_balanced_sample_weights(g_train)
+        
+        pipe = build_feature_model_pipeline(model_name="svm", reducer="none")
+        pipe.fit(X_train, y_train, clf__sample_weight=sample_weights)
+        
+        preds = pipe.predict_proba(X_test)[:, 1]
+        y_pred_probs[test_ix] = preds
+        
+        for i, g in enumerate(groups[test_ix]):
+            if g not in y_true_subject:
+                y_true_subject[g] = y_test[i]
+                y_pred_subject_probs[g] = []
+            y_pred_subject_probs[g].append(preds[i])
+            
+    subj_list = list(y_true_subject.keys())
+    y_subj_true = np.array([y_true_subject[g] for g in subj_list])
+    y_subj_prob = np.array([np.mean(y_pred_subject_probs[g]) for g in subj_list])
+    y_subj_pred = (y_subj_prob >= 0.5).astype(int)
+    
+    metrics = {
+        "balanced_accuracy": balanced_accuracy_score(y_subj_true, y_subj_pred),
+        "roc_auc": roc_auc_score(y_subj_true, y_subj_prob) if len(np.unique(y_subj_true)) > 1 else 0.5,
+        "f1": f1_score(y_subj_true, y_subj_pred, zero_division=0),
+    }
+    
+    return {
+        "leakage_detected": leakage_detected,
+        "primary_metric_level": "subject",
+        "subject_level_metrics": metrics,
+        "y_subj_true": y_subj_true,
+        "y_subj_prob": y_subj_prob,
+        "subj_list": subj_list
+    }
 
 if __name__ == "__main__":
     args = parse_args()
