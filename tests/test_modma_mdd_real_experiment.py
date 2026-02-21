@@ -145,3 +145,48 @@ def test_report_contains_ci_and_permutation_pvalue():
     assert "permutation_pvalue" in report
     assert report["n_permutations"] == 2
     assert report["permutation_strategy"] == "full_nested_cv_rerun"
+
+def test_main_writes_metrics_json(tmp_path, monkeypatch):
+    from modma_mdd_real_experiment import run_main_with_output_dir
+    import mne, glob, pandas as pd
+    
+    class FakeRaw:
+        def __init__(self, *args, **kwargs):
+            self.info = {"sfreq": 250.0, "ch_names": ["Fp1", "Fp2"]}
+            self.times = np.arange(0, 30, 1/250.0)
+        def load_data(self): return self
+        def copy(self): return self
+        def crop(self, *args, **kwargs): return self
+        def filter(self, *args, **kwargs): return self
+        def resample(self, sfreq, *args, **kwargs):
+            self.info["sfreq"] = sfreq
+            return self
+        def get_data(self, units="uV"):
+            return np.ones((2, int(30 * self.info["sfreq"])))
+            
+    monkeypatch.setattr(mne.io, "read_raw_edf", FakeRaw)
+    monkeypatch.setattr(glob, "glob", lambda x: ["fake.edf"] if "eeg" in x else [x])
+    
+    def fake_load_participants(path):
+        return pd.DataFrame({
+            "participant_id": ["s1", "s2", "s3", "s4"],
+            "group": ["MDD", "HC", "MDD", "HC"]
+        })
+    import modma_mdd_real_experiment
+    monkeypatch.setattr(modma_mdd_real_experiment, "load_participants", fake_load_participants)
+    
+    run_main_with_output_dir(
+        bids_root="D:/fake",
+        output_dir=str(tmp_path),
+        max_subjects=4,
+        resample_sfreq=125.0,
+        n_permutations=2,
+        seed=42,
+        min_windows_per_subject=2,
+        window_sec=10,
+        crop_duration=60
+    )
+    assert (tmp_path / "metrics.json").exists()
+    assert (tmp_path / "feature_importance.csv").exists()
+    assert (tmp_path / "roc_curve.png").exists()
+    assert (tmp_path / "confusion_matrix.png").exists()
