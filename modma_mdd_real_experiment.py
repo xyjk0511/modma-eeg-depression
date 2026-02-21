@@ -385,8 +385,6 @@ def _get_model_candidates():
     ]
     if HAS_LGBM:
         candidates.append(("lgbm", {"clf__n_estimators": [50, 100], "clf__max_depth": [3, 5]}))
-    else:
-        logger.warning("LightGBM not installed, skipping lgbm candidate")
     return candidates
 
 
@@ -424,12 +422,17 @@ def run_full_model_selection(X_raw, y, groups, ch_names, sfreq,
                               min_windows_per_subject=3,
                               n_splits=5, seed=42):
     """Outer CV with inner search over QC thresholds + models + hyperparams."""
-    # First apply default QC to get a working set for outer CV splitting
-    default_qc = bad_amp_candidates[0]
-    result = _apply_qc_and_extract(X_raw, y, groups, default_qc, max_bad_channels,
-                                    min_windows_per_subject, ch_names, sfreq)
+    if not HAS_LGBM:
+        logger.warning("LightGBM not installed, using SVM and logistic regression only")
+    # Try each QC candidate to find one that works for outer CV splitting
+    result = None
+    for qc_thr in bad_amp_candidates:
+        result = _apply_qc_and_extract(X_raw, y, groups, qc_thr, max_bad_channels,
+                                        min_windows_per_subject, ch_names, sfreq)
+        if result is not None:
+            break
     if result is None:
-        raise ValueError("No valid data after QC with default threshold")
+        raise ValueError("No valid data after QC with any candidate threshold")
     feats_default, y_default, g_default, feat_names = result
 
     cv_outer = StratifiedGroupKFold(n_splits=n_splits)
@@ -670,6 +673,7 @@ def build_report(X_raw, y, groups, cv_results, ch_names, sfreq,
             except (ValueError, Exception):
                 continue
 
+        report["effective_permutations"] = len(permuted_bas)
         if permuted_bas:
             permuted_bas = np.array(permuted_bas)
             actual_ba = report["balanced_accuracy"]
@@ -678,8 +682,10 @@ def build_report(X_raw, y, groups, cv_results, ch_names, sfreq,
             report["permuted_bas_mean"] = float(np.mean(permuted_bas))
             report["permuted_bas_std"] = float(np.std(permuted_bas))
         else:
+            logger.warning("All permutations failed; p-value is NaN")
             report["permutation_pvalue"] = float('nan')
     else:
+        report["effective_permutations"] = 0
         report["permutation_pvalue"] = float('nan')
 
     return report
@@ -737,21 +743,24 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
         raise ValueError(f"No valid EDF windows loaded (got shape {X_windows.shape}). Check that EDF files exist under bids_root.")
 
     keep_mask = build_quality_mask(X_windows, bad_amp_uv=bad_amp_uv, max_bad_channels=max_bad_channels)
-    
+
+    # Generate QC report with amplitude-only mask (before min-windows filter)
+    qc_report = generate_qc_report(participants_df, groups, keep_mask, no_edf_subjects, min_windows_per_subject)
+    qc_report.to_csv(os.path.join(output_dir, "qc_report.csv"), index=False)
+
     kept_groups = groups[keep_mask]
     unique_groups, counts = np.unique(kept_groups, return_counts=True)
     valid_groups = unique_groups[counts >= min_windows_per_subject]
-    
+
     if len(valid_groups) < len(unique_groups):
         dropped = set(unique_groups) - set(valid_groups)
         logger.warning(f"Dropping subjects with too few windows after QC: {dropped}")
         keep_mask = keep_mask & np.isin(groups, list(valid_groups))
-        
-    # Generate and save QC report before filtering
-    qc_report = generate_qc_report(participants_df, groups, keep_mask, no_edf_subjects, min_windows_per_subject)
-    qc_report.to_csv(os.path.join(output_dir, "qc_report.csv"), index=False)
 
     validate_post_qc_availability(groups, y_windows, keep_mask, min_windows_per_subject)
+
+    # Save raw data for model selection (searches QC thresholds internally)
+    X_raw, y_raw, groups_raw = X_windows, y_windows, groups
 
     X_windows = X_windows[keep_mask]
     y_windows = y_windows[keep_mask]
@@ -777,14 +786,14 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
 
     t0 = time.time()
     cv_results = run_full_model_selection(
-        X_windows, y_windows, groups, ch_names, resample_sfreq,
+        X_raw, y_raw, groups_raw, ch_names, resample_sfreq,
         bad_amp_candidates=bad_amp_candidates,
         max_bad_channels=max_bad_channels,
         min_windows_per_subject=min_windows_per_subject,
         n_splits=n_splits, seed=seed)
 
     report = build_report(
-        X_windows, y_windows, groups, cv_results, ch_names, resample_sfreq,
+        X_raw, y_raw, groups_raw, cv_results, ch_names, resample_sfreq,
         bad_amp_candidates=bad_amp_candidates,
         max_bad_channels=max_bad_channels,
         min_windows_per_subject=min_windows_per_subject,
