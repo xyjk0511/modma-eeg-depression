@@ -10,7 +10,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import mne
-from scipy.signal import welch
+from scipy.signal import welch, csd
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.feature_selection import SelectKBest, f_classif
@@ -26,6 +26,13 @@ try:
     HAS_LGBM = True
 except ImportError:
     HAS_LGBM = False
+
+try:
+    from pyriemann.estimation import Covariances
+    from pyriemann.tangentspace import TangentSpace
+    HAS_PYRIEMANN = True
+except ImportError:
+    HAS_PYRIEMANN = False
 
 _lgbm_warned = False
 logger = logging.getLogger(__name__)
@@ -96,6 +103,7 @@ def parse_args(argv=None):
     parser.add_argument("--output-dir", type=str, default="results", help="Output directory")
     parser.add_argument("--bad-amp-uv", type=float, default=200.0, help="Amplitude threshold in uV")
     parser.add_argument("--max-bad-channels", type=int, default=3, help="Max bad channels per window")
+    parser.add_argument("--highpass-freq", type=float, default=0.5, help="High-pass filter frequency in Hz")
 
     return parser.parse_args(argv)
 
@@ -154,7 +162,7 @@ def generate_qc_report(participants_df, groups, keep_mask, no_edf_subjects, min_
     return pd.DataFrame(rows)
 
 
-def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_duration=60.0):
+def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_duration=60.0, highpass_freq=0.5):
     all_epochs = []
     labels = []
     groups = []
@@ -190,7 +198,8 @@ def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_du
 
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore', category=RuntimeWarning)
-                raw.filter(l_freq=0.5, h_freq=45.0, verbose=False)
+                raw.filter(l_freq=highpass_freq, h_freq=45.0, verbose=False)
+                raw.set_eeg_reference('average', verbose=False)
                 if raw.info['sfreq'] != resample_sfreq:
                     raw.resample(resample_sfreq, verbose=False)
 
@@ -266,6 +275,16 @@ def extract_features(X, sfreq, ch_names=None):
     # Alpha asymmetry (frontal)
     features.append(_alpha_asymmetry(band_power["alpha"], ch_names, n_win))
     feature_names.append("alpha_asymmetry")
+
+    # Connectivity features (imaginary coherence)
+    conn_feats, conn_names = compute_connectivity_features(X, sfreq, region_idx)
+    features.append(conn_feats)
+    feature_names.extend(conn_names)
+
+    # Riemannian tangent space features
+    riem_feats, riem_names = compute_riemannian_features(X, region_idx)
+    features.append(riem_feats)
+    feature_names.extend(riem_names)
 
     return np.column_stack(features), feature_names
 
@@ -350,6 +369,50 @@ def compute_lateral_asymmetry(band_power, ch_names, n_win):
                 features.append(asym[:, np.newaxis])
             names.append(f"{region}_{band_name}_asym")
     return np.column_stack(features), names
+
+
+def compute_connectivity_features(X, sfreq, region_idx):
+    """Imaginary coherence between region pairs, 10 pairs x 4 bands = 40 dims."""
+    n_win = X.shape[0]
+    bands = {"delta": (1, 4), "theta": (4, 8), "alpha": (8, 13), "beta": (13, 30)}
+    pairs = [(REGIONS[i], REGIONS[j]) for i in range(5) for j in range(i + 1, 5)]
+    nperseg = min(X.shape[2], int(sfreq * 2))
+    region_signals = {}
+    for region in REGIONS:
+        idx = region_idx[region]
+        region_signals[region] = np.mean(X[:, idx, :], axis=1) if idx else np.zeros((n_win, X.shape[2]))
+    features, names = [], []
+    for r1, r2 in pairs:
+        freqs_c, Pxy = csd(region_signals[r1], region_signals[r2], fs=sfreq, nperseg=nperseg, axis=1)
+        for band_name, (fmin, fmax) in bands.items():
+            mask = (freqs_c >= fmin) & (freqs_c <= fmax)
+            csd_band = np.mean(Pxy[:, mask], axis=1)
+            imcoh = np.abs(np.imag(csd_band)) / (np.abs(csd_band) + 1e-10)
+            features.append(imcoh[:, np.newaxis])
+            names.append(f"imcoh_{r1}_{r2}_{band_name}")
+    return np.column_stack(features), names
+
+
+def compute_riemannian_features(X, region_idx):
+    """Tangent space features from 5-region covariance matrices = 15 dims."""
+    n_win = X.shape[0]
+    region_data = []
+    for region in REGIONS:
+        idx = region_idx[region]
+        region_data.append(np.mean(X[:, idx, :], axis=1) if idx else np.zeros((n_win, X.shape[2])))
+    region_data = np.stack(region_data, axis=1)  # (n_win, 5, n_times)
+    triu_idx = np.triu_indices(5)
+    names = [f"riem_{REGIONS[i]}_{REGIONS[j]}" for i, j in zip(triu_idx[0], triu_idx[1])]
+    if not HAS_PYRIEMANN:
+        covs = np.array([np.cov(region_data[i]) for i in range(n_win)])
+        covs += 1e-6 * np.eye(5)[np.newaxis]
+        return covs[:, triu_idx[0], triu_idx[1]], names
+    cov_est = Covariances(estimator='lwf')
+    covs = cov_est.fit_transform(region_data)
+    covs += 1e-6 * np.eye(5)[np.newaxis]
+    ts = TangentSpace()
+    tangent = ts.fit_transform(covs)
+    return tangent, names
 
 
 def build_feature_model_pipeline(model_name="svm", reducer="none"):
@@ -521,7 +584,10 @@ def run_full_model_selection(X_raw, y, groups, ch_names, sfreq,
                 y_pred_subject_probs[g] = []
             y_pred_subject_probs[g].append(preds[i])
 
-        fold_results.append({"fold": fold_i, **best_cfg, "inner_score": best_score})
+        fold_results.append({
+            "fold": fold_i, **best_cfg, "inner_score": best_score,
+            "n_train_subjects": len(train_subjects), "n_test_subjects": len(test_subjects),
+        })
 
     if not y_true_subject:
         raise ValueError("No valid outer-fold predictions after QC/model selection")
@@ -638,6 +704,7 @@ def build_report(X_raw, y, groups, cv_results, ch_names, sfreq,
     ba_ci = get_ci_bootstrap(y_subj_true, y_subj_pred, balanced_accuracy_score, seed=seed)
 
     report = {
+        "experiment_type": "connectivity_riemannian_v4",
         "primary_metric": "subject_level_balanced_accuracy",
         "balanced_accuracy": cv_results["subject_level_metrics"]["balanced_accuracy"],
         "balanced_accuracy_ci95": ba_ci,
@@ -687,6 +754,7 @@ def build_report(X_raw, y, groups, cv_results, ch_names, sfreq,
             report["permutation_pvalue"] = p_value
             report["permuted_bas_mean"] = float(np.mean(permuted_bas))
             report["permuted_bas_std"] = float(np.std(permuted_bas))
+            report["permutation_scores"] = permuted_bas.tolist()
         else:
             report["permutation_pvalue"] = None
     else:
@@ -723,7 +791,7 @@ def determine_conclusion(report, subject_labels):
     }
 
 
-def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq, n_permutations, seed, min_windows_per_subject, window_sec, crop_duration, bad_amp_uv=200.0, max_bad_channels=3):
+def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq, n_permutations, seed, min_windows_per_subject, window_sec, crop_duration, bad_amp_uv=200.0, max_bad_channels=3, highpass_freq=0.5):
     os.makedirs(output_dir, exist_ok=True)
     participants_path = os.path.join(bids_root, "participants.tsv")
 
@@ -742,7 +810,8 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
         bids_root=bids_root,
         window_sec=window_sec,
         resample_sfreq=resample_sfreq,
-        crop_duration=crop_duration
+        crop_duration=crop_duration,
+        highpass_freq=highpass_freq,
     )
 
     if X_windows.ndim != 3 or len(X_windows) == 0:
@@ -810,6 +879,12 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
     # Feature importance on lenient-QC filtered data
     features, feature_names = extract_features(X_filtered, sfreq=resample_sfreq, ch_names=ch_names)
 
+    # Save permutation scores as separate CSV
+    perm_scores = report.pop("permutation_scores", None)
+    if perm_scores:
+        pd.DataFrame({"balanced_accuracy": perm_scores}).to_csv(
+            os.path.join(output_dir, "permutation_scores.csv"), index=False)
+
     # Stopping criteria
     conclusion = determine_conclusion(report, subject_labels)
     report["conclusion"] = conclusion
@@ -862,7 +937,8 @@ if __name__ == "__main__":
             window_sec=args.window_sec,
             crop_duration=args.crop_duration,
             bad_amp_uv=args.bad_amp_uv,
-            max_bad_channels=args.max_bad_channels
+            max_bad_channels=args.max_bad_channels,
+            highpass_freq=args.highpass_freq,
         )
     except (ValueError, FileNotFoundError) as e:
         logger.error(f"Error: {e}")

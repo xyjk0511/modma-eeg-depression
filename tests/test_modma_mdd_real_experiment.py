@@ -67,12 +67,14 @@ def test_window_extraction_returns_labels_and_groups(monkeypatch):
             return self
         def filter(self, *args, **kwargs):
             return self
+        def set_eeg_reference(self, *args, **kwargs):
+            return self
         def resample(self, sfreq, *args, **kwargs):
             self.info["sfreq"] = sfreq
             return self
         def get_data(self, units="uV"):
             return np.ones((2, int(30 * self.info["sfreq"])))
-    
+
     monkeypatch.setattr(mne.io, "read_raw_edf", FakeRaw)
     import glob
     monkeypatch.setattr(glob, "glob", lambda x: ["fake.edf"])
@@ -161,15 +163,16 @@ def test_main_writes_metrics_json(tmp_path, monkeypatch):
         def copy(self): return self
         def crop(self, *args, **kwargs): return self
         def filter(self, *args, **kwargs): return self
+        def set_eeg_reference(self, *args, **kwargs): return self
         def resample(self, sfreq, *args, **kwargs):
             self.info["sfreq"] = sfreq
             return self
         def get_data(self, units="uV"):
             return np.ones((2, int(30 * self.info["sfreq"])))
-            
+
     monkeypatch.setattr(mne.io, "read_raw_edf", FakeRaw)
     monkeypatch.setattr(glob, "glob", lambda x: ["fake.edf"] if "eeg" in x else [x])
-    
+
     def fake_load_participants(path):
         return pd.DataFrame({
             "participant_id": ["s1", "s2", "s3", "s4"],
@@ -294,6 +297,7 @@ def test_roc_curve_uses_real_predictions(tmp_path, monkeypatch):
         def copy(self): return self
         def crop(self, *a, **kw): return self
         def filter(self, *a, **kw): return self
+        def set_eeg_reference(self, *a, **kw): return self
         def resample(self, sfreq, *a, **kw):
             self.info["sfreq"] = sfreq
             return self
@@ -521,3 +525,49 @@ def test_full_model_selection_raises_on_all_empty_folds(monkeypatch):
                                  bad_amp_candidates=(9999,),
                                  min_windows_per_subject=2,
                                  n_splits=2, seed=42)
+
+
+# --- v4 feature upgrade tests ---
+
+def test_connectivity_features_shape():
+    from modma_mdd_real_experiment import compute_connectivity_features, build_region_indices
+    ch_names = [f"E{i}" for i in range(1, 129)]
+    region_idx = build_region_indices(ch_names)
+    X = np.random.RandomState(0).randn(3, 128, 500)
+    feats, names = compute_connectivity_features(X, sfreq=125.0, region_idx=region_idx)
+    assert feats.shape == (3, 40)  # 10 pairs * 4 bands
+    assert len(names) == 40
+    assert all("imcoh_" in n for n in names)
+
+
+def test_riemannian_features_shape():
+    from modma_mdd_real_experiment import compute_riemannian_features, build_region_indices
+    ch_names = [f"E{i}" for i in range(1, 129)]
+    region_idx = build_region_indices(ch_names)
+    X = np.random.RandomState(0).randn(3, 128, 500)
+    feats, names = compute_riemannian_features(X, region_idx=region_idx)
+    assert feats.shape == (3, 15)  # 5*(5+1)/2
+    assert len(names) == 15
+
+
+def test_cli_accepts_highpass_freq():
+    args = parse_args(["--bids-root", "fake", "--highpass-freq", "1.0"])
+    assert args.highpass_freq == 1.0
+
+
+def test_load_windows_applies_average_reference():
+    """load_windows must call set_eeg_reference('average')."""
+    import inspect
+    from modma_mdd_real_experiment import load_windows
+    src = inspect.getsource(load_windows)
+    assert "set_eeg_reference" in src
+    assert "'average'" in src
+
+
+def test_total_feature_dimensions_144():
+    from modma_mdd_real_experiment import extract_features
+    ch_names = [f"E{i}" for i in range(1, 129)]
+    X = np.random.RandomState(0).randn(2, 128, 500)
+    feats, names = extract_features(X, sfreq=125.0, ch_names=ch_names)
+    assert feats.shape[1] == 144
+    assert len(names) == 144
