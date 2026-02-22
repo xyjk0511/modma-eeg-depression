@@ -23,11 +23,11 @@ This project fixes the QC bottleneck that drops 80% of subjects (11/53 retained)
   3. Window 0 is skipped for every subject (no filter transient artifacts)
   4. Highpass filter is set to 1.0 Hz (not 0.5 Hz)
   5. QC report shows MDD and HC group retention rates differ by < 20%
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 01-01: TBD
-- [ ] 01-02: TBD
+- [ ] 01-01-PLAN.md — Core pipeline repair (montage, interpolation, W0 skip, highpass 1.0, dynamic max_bad)
+- [ ] 01-02-PLAN.md — QC report extension + end-to-end verification (>=35 subjects, group balance)
 
 ### Phase 2: Preprocessing Upgrade
 **Goal**: Bad channel detection uses multi-criteria PREP standard and EDF loading is cached for sub-second iteration
