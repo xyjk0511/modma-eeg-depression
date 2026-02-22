@@ -360,11 +360,9 @@ def extract_features(X, sfreq, ch_names=None):
     alpha_power = np.mean(psd[:, :, alpha_mask], axis=2)
     features.append(_alpha_asymmetry(alpha_power, ch_names, n_win, "frontal"))
 
-    theta_mask = (freqs >= 4) & (freqs <= 8)
-    beta_mask = (freqs >= 13) & (freqs <= 30)
-    theta_p = np.mean(np.mean(psd[:, pidx][:, :, theta_mask], axis=2), axis=1, keepdims=True)
-    beta_p = np.mean(np.mean(psd[:, pidx][:, :, beta_mask], axis=2), axis=1, keepdims=True)
-    features.append(theta_p / (beta_p + 1e-10))
+    theta_rel = _band_rel(pidx, 4, 8)
+    beta_rel = _band_rel(pidx, 13, 30)
+    features.append(theta_rel / (beta_rel + 1e-10))
 
     ct = ["central", "temporal"]
     sigs = [np.mean(X[:, region_idx[r], :], axis=1) if region_idx[r]
@@ -432,9 +430,7 @@ def _alpha_asymmetry(alpha_power, ch_names, n_win, region="frontal"):
         return np.zeros((n_win, 1))
     l_alpha = np.mean(alpha_power[:, left], axis=1)
     r_alpha = np.mean(alpha_power[:, right], axis=1)
-    denom = r_alpha + l_alpha
-    result = np.zeros_like(denom)
-    np.divide(r_alpha - l_alpha, denom, out=result, where=denom != 0)
+    result = np.log(r_alpha + 1e-10) - np.log(l_alpha + 1e-10)
     return result[:, np.newaxis]
 
 def build_feature_model_pipeline(use_l1=False):
@@ -442,8 +438,7 @@ def build_feature_model_pipeline(use_l1=False):
     penalty, solver = ("l1", "saga") if use_l1 else ("l2", "lbfgs")
     return Pipeline([
         ("scaler", StandardScaler()),
-        ("clf", LogisticRegression(C=0.1, class_weight="balanced",
-                                   penalty=penalty, solver=solver,
+        ("clf", LogisticRegression(C=0.1, penalty=penalty, solver=solver,
                                    max_iter=1000, random_state=42)),
     ])
 
