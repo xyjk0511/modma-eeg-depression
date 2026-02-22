@@ -1,4 +1,5 @@
 import argparse
+import hashlib
 import pandas as pd
 import numpy as np
 import os
@@ -85,6 +86,25 @@ def build_region_indices(ch_names):
     return region_indices
 
 
+def _compute_cache_key(participants_df, bids_root, window_sec, resample_sfreq,
+                       crop_duration, highpass_freq, bad_amp_uv):
+    """SHA-256 of params + per-EDF mtime → 16-char hex key."""
+    h = hashlib.sha256()
+    ids = sorted(participants_df["participant_id"].tolist())
+    h.update(json.dumps(ids).encode())
+    for v in (window_sec, resample_sfreq, crop_duration, highpass_freq, bad_amp_uv):
+        h.update(str(v).encode())
+    for sid in ids:
+        safe_id = os.path.basename(sid)
+        for ext in (".EDF", ".edf"):
+            p = os.path.join(bids_root, safe_id, "eeg",
+                             f"{safe_id}_task-Resting-state_eeg{ext}")
+            if os.path.exists(p):
+                h.update(str(os.path.getmtime(p)).encode())
+                break
+    return h.hexdigest()[:16]
+
+
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description="MODMA MDD vs HC Classification")
     parser.add_argument("--bids-root", required=True, help="Path to MODMA BIDS dataset")
@@ -99,6 +119,7 @@ def parse_args(argv=None):
     parser.add_argument("--bad-amp-uv", type=float, default=200.0, help="Amplitude threshold in uV")
     parser.add_argument("--highpass-freq", type=float, default=1.0, help="High-pass filter frequency in Hz")
     parser.add_argument("--n-jobs", type=int, default=4, help="Parallel jobs for permutation test")
+    parser.add_argument("--no-cache", action="store_true", help="Disable .npz window cache")
 
     return parser.parse_args(argv)
 
@@ -172,7 +193,20 @@ def generate_qc_report(participants_df, groups, keep_mask, no_edf_subjects, min_
     return df, retention_stats
 
 
-def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_duration=60.0, highpass_freq=1.0, bad_amp_uv=200.0):
+def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_duration=60.0, highpass_freq=1.0, bad_amp_uv=200.0, cache_dir=None):
+    # --- cache hit ---
+    if cache_dir:
+        key = _compute_cache_key(participants_df, bids_root, window_sec,
+                                 resample_sfreq, crop_duration, highpass_freq, bad_amp_uv)
+        cache_path = os.path.join(cache_dir, f"{key}.npz")
+        if os.path.exists(cache_path):
+            logger.info("Cache hit: %s", cache_path)
+            d = np.load(cache_path, allow_pickle=True)
+            return (d["X"], d["y"], d["groups"],
+                    [tuple(x) for x in d["no_edf"]],
+                    list(d["ch_names"]),
+                    d["interp_info"].item())
+
     all_epochs = []
     labels = []
     groups = []
@@ -254,7 +288,19 @@ def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_du
         except Exception as e:
             logger.error(f"处理 {sub_id} 时发生错误: {e}")
 
-    return np.array(all_epochs), np.array(labels), np.array(groups), no_edf_subjects, ch_names, interp_info
+    result = (np.array(all_epochs), np.array(labels), np.array(groups),
+              no_edf_subjects, ch_names, interp_info)
+
+    # --- cache save ---
+    if cache_dir:
+        os.makedirs(cache_dir, exist_ok=True)
+        np.savez(cache_path,
+                 X=result[0], y=result[1], groups=result[2],
+                 no_edf=np.array(no_edf_subjects, dtype=object),
+                 ch_names=np.array(ch_names if ch_names else [], dtype=object),
+                 interp_info=np.array(interp_info))
+
+    return result
 
 def extract_features(X, sfreq, ch_names=None):
     n_win, n_ch, n_times = X.shape
@@ -854,7 +900,7 @@ def determine_conclusion(report, subject_labels):
     }
 
 
-def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq, n_permutations, seed, min_windows_per_subject, window_sec, crop_duration, bad_amp_uv=200.0, highpass_freq=1.0, n_jobs=4):
+def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq, n_permutations, seed, min_windows_per_subject, window_sec, crop_duration, bad_amp_uv=200.0, highpass_freq=1.0, n_jobs=4, use_cache=True):
     os.makedirs(output_dir, exist_ok=True)
     participants_path = os.path.join(bids_root, "participants.tsv")
 
@@ -868,6 +914,7 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
         hc = participants_df[participants_df["group"] == "HC"].head(max_subjects - len(mdd))
         participants_df = pd.concat([mdd, hc], ignore_index=True)
 
+    cache_dir = os.path.join(output_dir, ".cache") if use_cache else None
     X_windows, y_windows, groups, no_edf_subjects, ch_names, interp_info = load_windows(
         participants_df,
         bids_root=bids_root,
@@ -876,6 +923,7 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
         crop_duration=crop_duration,
         highpass_freq=highpass_freq,
         bad_amp_uv=bad_amp_uv,
+        cache_dir=cache_dir,
     )
 
     if X_windows.ndim != 3 or len(X_windows) == 0:
@@ -1011,6 +1059,7 @@ if __name__ == "__main__":
             bad_amp_uv=args.bad_amp_uv,
             highpass_freq=args.highpass_freq,
             n_jobs=args.n_jobs,
+            use_cache=not args.no_cache,
         )
     except (ValueError, FileNotFoundError) as e:
         logger.error(f"Error: {e}")

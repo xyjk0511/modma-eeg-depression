@@ -608,3 +608,55 @@ def test_riemannian_features_consistent_across_calls():
     f2, n2 = compute_riemannian_features(X, region_idx)
     # First 2 windows must be identical regardless of batch composition
     np.testing.assert_array_equal(f1, f2[:2])
+
+
+def test_load_windows_cache_roundtrip(tmp_path, monkeypatch):
+    """Second load_windows call must return identical data from .npz cache."""
+    from modma_mdd_real_experiment import load_windows
+    import mne, pandas as pd
+
+    class FakeRaw:
+        def __init__(self, *a, **kw):
+            self.info = {"sfreq": 250.0, "ch_names": ["Fp1", "Fp2"], "bads": []}
+            self.times = np.arange(0, 30, 1/250.0)
+        @property
+        def ch_names(self):
+            return self.info["ch_names"]
+        def load_data(self): return self
+        def copy(self): return self
+        def crop(self, *a, **kw): return self
+        def filter(self, *a, **kw): return self
+        def set_eeg_reference(self, *a, **kw): return self
+        def set_montage(self, *a, **kw): return self
+        def interpolate_bads(self, *a, **kw): return self
+        def resample(self, sfreq, *a, **kw):
+            self.info["sfreq"] = sfreq
+            return self
+        def get_data(self, units="uV"):
+            return np.ones((2, int(30 * self.info["sfreq"]))) * 1e-7
+
+    monkeypatch.setattr(mne.io, "read_raw_edf", FakeRaw)
+    import glob as glob_mod
+    monkeypatch.setattr(glob_mod, "glob", lambda x: ["fake.edf"])
+
+    df = pd.DataFrame({"participant_id": ["sub-001", "sub-025"], "group": ["MDD", "HC"]})
+    cache_dir = str(tmp_path / "cache")
+    kw = dict(bids_root="D:/fake", window_sec=10, resample_sfreq=125.0, cache_dir=cache_dir)
+
+    X1, y1, g1, no1, ch1, ii1 = load_windows(df, **kw)
+
+    # Second call — FakeRaw should NOT be reached (cache hit)
+    call_count = {"n": 0}
+    orig = mne.io.read_raw_edf
+    def counting_raw(*a, **kw):
+        call_count["n"] += 1
+        return orig(*a, **kw)
+    monkeypatch.setattr(mne.io, "read_raw_edf", counting_raw)
+
+    X2, y2, g2, no2, ch2, ii2 = load_windows(df, **kw)
+    assert call_count["n"] == 0, "Cache miss — read_raw_edf was called on second run"
+    np.testing.assert_array_equal(X1, X2)
+    np.testing.assert_array_equal(y1, y2)
+    np.testing.assert_array_equal(g1, g2)
+    assert ch1 == ch2
+    assert ii1 == ii2
