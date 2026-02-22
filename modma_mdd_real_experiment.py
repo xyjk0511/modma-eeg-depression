@@ -751,8 +751,8 @@ def build_report(X_raw, y, groups, cv_results, ch_names, sfreq,
                 ns = 2
             jobs.append((y_permuted, ns))
 
-        logger.info(f"Running {len(jobs)} permutations with joblib (n_jobs=-1)...")
-        results = Parallel(n_jobs=-1)(
+        logger.info(f"Running {len(jobs)} permutations with joblib (n_jobs=4)...")
+        results = Parallel(n_jobs=4)(
             delayed(_run_one_permutation)(
                 X_raw, y_p, groups, ch_names, sfreq,
                 bad_amp_candidates, max_bad_channels,
