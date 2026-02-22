@@ -22,7 +22,7 @@ mne.set_log_level("ERROR")
 
 # ── Config ──────────────────────────────────────────────────────
 ERP_DIR = Path("854301_EEG_128Channels_ERP_Lanzhou_2015/EEG_128channels_ERP_lanzhou_2015")
-CONDITION = "hcue"          # happy-neutral cue
+CONDITION = "hcue"          # overridden in __main__ loop
 TMIN, TMAX = -0.1, 0.5     # epoch window (sec)
 BASELINE = (-0.1, 0.0)     # baseline correction
 FMIN, FMAX = 0.5, 40.0     # bandpass filter
@@ -136,6 +136,8 @@ def run_loso(X, y, ids):
 
 
 if __name__ == "__main__":
-    X, y, ids = load_erp_features()
-    print(f"Feature matrix: {X.shape}", flush=True)
-    run_loso(X, y, ids)
+    for cond in ["hcue", "fcue", "scue"]:
+        CONDITION = cond
+        X, y, ids = load_erp_features()
+        print(f"Feature matrix: {X.shape}", flush=True)
+        run_loso(X, y, ids)
