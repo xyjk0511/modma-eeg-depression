@@ -40,7 +40,7 @@ def load_tdbrain_subjects(tdbrain_root):
 
     # Identify participant_id column
     id_col = None
-    for candidate in ["participant_id", "subject_id", "sub"]:
+    for candidate in ["participant_id", "participants_id", "subject_id", "sub"]:
         if candidate in df.columns:
             id_col = candidate
             break
