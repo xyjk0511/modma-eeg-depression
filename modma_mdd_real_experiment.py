@@ -86,15 +86,20 @@ def build_region_indices(ch_names):
     return region_indices
 
 
+_CACHE_VERSION = "2"  # bump when preprocessing logic changes
+
+
 def _compute_cache_key(participants_df, bids_root, window_sec, resample_sfreq,
                        crop_duration, highpass_freq, bad_amp_uv):
-    """SHA-256 of params + per-EDF mtime → 16-char hex key."""
+    """SHA-256 of params + id→group mapping + per-EDF mtime → 16-char hex key."""
     h = hashlib.sha256()
-    ids = sorted(participants_df["participant_id"].tolist())
-    h.update(json.dumps(ids).encode())
+    h.update(_CACHE_VERSION.encode())
+    id_group = sorted(zip(participants_df["participant_id"],
+                          participants_df["group"]))
+    h.update(json.dumps(id_group).encode())
     for v in (window_sec, resample_sfreq, crop_duration, highpass_freq, bad_amp_uv):
         h.update(str(v).encode())
-    for sid in ids:
+    for sid, _ in id_group:
         safe_id = os.path.basename(sid)
         for ext in (".EDF", ".edf"):
             p = os.path.join(bids_root, safe_id, "eeg",
@@ -200,12 +205,16 @@ def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_du
                                  resample_sfreq, crop_duration, highpass_freq, bad_amp_uv)
         cache_path = os.path.join(cache_dir, f"{key}.npz")
         if os.path.exists(cache_path):
-            logger.info("Cache hit: %s", cache_path)
-            d = np.load(cache_path, allow_pickle=True)
-            return (d["X"], d["y"], d["groups"],
-                    [tuple(x) for x in d["no_edf"]],
-                    list(d["ch_names"]),
-                    d["interp_info"].item())
+            try:
+                d = np.load(cache_path, allow_pickle=True)
+                logger.info("Cache hit: %s", cache_path)
+                return (d["X"], d["y"], d["groups"],
+                        [tuple(x) for x in d["no_edf"]],
+                        list(d["ch_names"]),
+                        d["interp_info"].item())
+            except Exception as e:
+                logger.warning("Corrupt cache %s, deleting: %s", cache_path, e)
+                os.remove(cache_path)
 
     all_epochs = []
     labels = []
