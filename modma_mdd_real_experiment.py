@@ -852,27 +852,33 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
         hc = participants_df[participants_df["group"] == "HC"].head(max_subjects - len(mdd))
         participants_df = pd.concat([mdd, hc], ignore_index=True)
 
-    X_windows, y_windows, groups, no_edf_subjects, ch_names = load_windows(
+    X_windows, y_windows, groups, no_edf_subjects, ch_names, interp_info = load_windows(
         participants_df,
         bids_root=bids_root,
         window_sec=window_sec,
         resample_sfreq=resample_sfreq,
         crop_duration=crop_duration,
         highpass_freq=highpass_freq,
+        bad_amp_uv=bad_amp_uv,
     )
 
     if X_windows.ndim != 3 or len(X_windows) == 0:
         raise ValueError(f"No valid EDF windows loaded (got shape {X_windows.shape}). Check that EDF files exist under bids_root.")
 
+    # Dynamic max_bad_channels: 12% of channel count
+    n_channels = X_windows.shape[1]
+    dynamic_max_bad = int(n_channels * 0.12)
+    logger.info(f"Dynamic max_bad_channels: {dynamic_max_bad} (12% of {n_channels})")
+
     bad_amp_candidates = (bad_amp_uv,)
 
-    # QC report uses user-specified threshold
-    keep_mask = build_quality_mask(X_windows, bad_amp_uv=bad_amp_uv, max_bad_channels=max_bad_channels)
+    # QC report uses dynamic threshold
+    keep_mask = build_quality_mask(X_windows, bad_amp_uv=bad_amp_uv, max_bad_channels=dynamic_max_bad)
     qc_report = generate_qc_report(participants_df, groups, keep_mask, no_edf_subjects, min_windows_per_subject)
     qc_report.to_csv(os.path.join(output_dir, "qc_report.csv"), index=False)
 
     # Validation uses most lenient candidate so stricter thresholds don't block the pipeline
-    lenient_mask = build_quality_mask(X_windows, bad_amp_uv=max(bad_amp_candidates), max_bad_channels=max_bad_channels)
+    lenient_mask = build_quality_mask(X_windows, bad_amp_uv=max(bad_amp_candidates), max_bad_channels=dynamic_max_bad)
     kept_groups = groups[lenient_mask]
     if len(kept_groups) == 0:
         raise ValueError("No windows survive QC even at most lenient threshold")
@@ -906,14 +912,14 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
     cv_results = run_full_model_selection(
         X_windows, y_windows, groups, ch_names, resample_sfreq,
         bad_amp_candidates=bad_amp_candidates,
-        max_bad_channels=max_bad_channels,
+        max_bad_channels=dynamic_max_bad,
         min_windows_per_subject=min_windows_per_subject,
         n_splits=n_splits, seed=seed)
 
     report = build_report(
         X_windows, y_windows, groups, cv_results, ch_names, resample_sfreq,
         bad_amp_candidates=bad_amp_candidates,
-        max_bad_channels=max_bad_channels,
+        max_bad_channels=dynamic_max_bad,
         min_windows_per_subject=min_windows_per_subject,
         n_permutations=n_permutations, seed=seed, n_jobs=n_jobs)
     report["elapsed_seconds"] = round(time.time() - t0, 1)
