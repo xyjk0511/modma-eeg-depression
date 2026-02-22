@@ -136,10 +136,12 @@ def load_tdbrain_features(
     window_sec=10.0,
     min_windows_per_subject=3,
     use_formal_status=False,
+    return_windows=False,
 ):
     """Load TDBRAIN, preprocess with locked params, return features.
 
     Returns (features, y, groups, ch_names, qc_stats).
+    If return_windows=True, also returns raw window array X as 6th element.
     """
     participants_df = load_tdbrain_subjects(tdbrain_root, use_formal_status=use_formal_status)
     label_map = {"MDD": 1, "HC": 0}
@@ -268,6 +270,8 @@ def load_tdbrain_features(
     logger.info(f"TDBRAIN features: {features.shape}, names: {feature_names}")
     qc_stats["subjects_final"] = len(set(groups_arr))
 
+    if return_windows:
+        return features, y, groups_arr, ch_names_out, qc_stats, X
     return features, y, groups_arr, ch_names_out, qc_stats
 
 
