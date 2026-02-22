@@ -53,11 +53,11 @@ Plans:
   3. Permutation test extracts features once and permutes labels 1000 times
   4. Permutation wall-clock reduced >= 50% vs baseline
   5. Cross-validated BA >= 0.5 (above chance)
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 03-01: TBD
-- [ ] 03-02: TBD
+- [ ] 03-01-PLAN.md -- Rewrite extract_features to 29 dims + create run_simplified_cv
+- [ ] 03-02-PLAN.md -- Rewrite permutation loop + main entry for pre-extracted features
 
 ### Phase 4: Statistical Validation
 **Goal**: Classification demonstrates statistically significant above-chance performance
@@ -67,7 +67,7 @@ Plans:
   1. Best classifier achieves balanced accuracy > 0.60 on cross-validated subject-level evaluation
   2. Permutation test yields p < 0.05 confirming result is not due to chance
   3. Results are saved to metrics.json with BA, p-value, CI, and classifier name
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
 - [ ] 04-01: TBD
@@ -78,5 +78,5 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. QC Repair | 2/2 | Complete | 2026-02-22 |
 | 2. Preprocessing Upgrade | 1/1 | Complete (pyprep deferred) | 2026-02-22 |
-| 3. Feature & Permutation Optimization | 0/? | Not started | - |
+| 3. Feature & Permutation Optimization | 0/2 | Planned | - |
 | 4. Statistical Validation | 0/? | Not started | - |
