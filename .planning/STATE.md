@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Fix QC parameters to retain enough subjects for MDD vs HC classification
-**Current focus:** Phase 4: Statistical Validation
+**Current focus:** Project complete (all 4 phases done)
 
 ## Current Position
 
-Phase: 3 of 4 (Feature Reduction & Pipeline Optimization) -- COMPLETE
-Plan: 2 of 2 complete (03-01 done, 03-02 done)
-Status: Full simplified pipeline operational; permutation ~86% faster
-Last activity: 2026-02-22 — Plan 03-02 executed
+Phase: 4 of 4 (Statistical Validation) -- COMPLETE
+Result: NEGATIVE — BA=0.613 (>0.60) but p=0.135 (>0.05)
+Status: Performance meets threshold but statistically not significant
+Last activity: 2026-02-22 — Phase 4 validation complete
 
-Progress: [████████░░] 75%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
@@ -53,9 +53,13 @@ Recent decisions affecting current work:
 - 03-02: Permutation loop calls run_simplified_cv per iteration (no re-extraction)
 - 03-02: Removed lenient_mask/bad_amp_candidates; fixed 200uV + dynamic_max_bad directly
 
+- 04: Parietal focus (theta/alpha/TBR) outperforms frontal (BA 0.558→0.613)
+- 04: BA=0.613 meets threshold but p=0.135 — statistically not significant
+- 04: Conclusion: negative/inconclusive; pre-register for confirmatory replication
+
 ### Pending Todos
 
-None yet.
+None — project complete.
 
 ### Blockers/Concerns
 
