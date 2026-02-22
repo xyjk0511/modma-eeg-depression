@@ -56,7 +56,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 03-01-PLAN.md -- Rewrite extract_features to 29 dims + create run_simplified_cv
+- [x] 03-01-PLAN.md -- Rewrite extract_features to 29 dims + create run_simplified_cv
 - [ ] 03-02-PLAN.md -- Rewrite permutation loop + main entry for pre-extracted features
 
 ### Phase 4: Statistical Validation
@@ -78,5 +78,5 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. QC Repair | 2/2 | Complete | 2026-02-22 |
 | 2. Preprocessing Upgrade | 1/1 | Complete (pyprep deferred) | 2026-02-22 |
-| 3. Feature & Permutation Optimization | 0/2 | Planned | - |
+| 3. Feature & Permutation Optimization | 1/2 | In Progress | - |
 | 4. Statistical Validation | 0/? | Not started | - |

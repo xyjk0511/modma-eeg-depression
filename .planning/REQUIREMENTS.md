@@ -19,7 +19,7 @@
 
 ### 特征工程
 
-- [ ] **FEAT-01**: 新增 Theta/Beta 比率特征（per channel 或 per region）
+- [x] **FEAT-01**: 新增 Theta/Beta 比率特征（per channel 或 per region）
 
 ### 架构优化
 
@@ -70,7 +70,7 @@
 | QC-04 | Phase 1 | Done (01-02) |
 | PRE-01 | Phase 1 | Done (01-01) |
 | PRE-02 | Phase 2 | Pending |
-| FEAT-01 | Phase 3 | Pending |
+| FEAT-01 | Phase 3 | Done (03-01) |
 | ARCH-01 | Phase 2 | Pending |
 | ARCH-02 | Phase 3 | Pending |
 | VAL-01 | Phase 4 | Pending |

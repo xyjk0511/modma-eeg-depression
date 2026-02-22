@@ -9,25 +9,26 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 
 ## Current Position
 
-Phase: 3 of 4 (Feature Reduction & Pipeline Optimization) -- CONTEXT GATHERED
-Plan: Ready for planning
-Status: Context captured, decisions locked for 29-dim feature set + simplified pipeline
-Last activity: 2026-02-22 — Phase 3 context discussion complete
+Phase: 3 of 4 (Feature Reduction & Pipeline Optimization) -- IN PROGRESS
+Plan: 1 of 2 complete (03-01 done, 03-02 next)
+Status: 29-dim extract_features + run_simplified_cv implemented
+Last activity: 2026-02-22 — Plan 03-01 executed
 
-Progress: [████░░░░░░] 40%
+Progress: [██████░░░░] 55%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 2
-- Average duration: 8.5 min
-- Total execution time: 0.28 hours
+- Total plans completed: 3
+- Average duration: 7.7 min
+- Total execution time: 0.38 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1-QC Repair | 2/2 | 17 min | 8.5 min |
+| 3-Feature Opt | 1/2 | 6 min | 6 min |
 
 ## Accumulated Context
 
@@ -46,6 +47,9 @@ Recent decisions affecting current work:
 - 03: Fixed QC 200μV, drop LightGBM, SVM+Logistic only
 - 03: Permutation pre-extract features, permute labels only, 1000 iterations
 
+- 03-01: Inline Riemannian top-2 (3x3 cov central/temporal/parietal)
+- 03-01: Alpha asymmetry generalized with region param and 10-20 fallback
+
 ### Pending Todos
 
 None yet.
@@ -57,6 +61,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-22 06:31
-Stopped at: Phase 3 context gathered
-Resume file: .planning/phases/03-feature-permutation-opt/03-CONTEXT.md
+Last session: 2026-02-22 07:05
+Stopped at: Completed 03-01-PLAN.md
+Resume file: .planning/phases/03-feature-permutation-opt/03-02-PLAN.md
