@@ -20,6 +20,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedGroupKFold, GridSearchCV
 from sklearn.metrics import roc_auc_score, f1_score, accuracy_score, balanced_accuracy_score, confusion_matrix, roc_curve
 import time
+from joblib import Parallel, delayed
 
 try:
     from lightgbm import LGBMClassifier
@@ -693,6 +694,23 @@ def get_ci_bootstrap(y_true, y_pred, metric_fn, n_bootstraps=1000, seed=42):
         return (0.0, 0.0)
     return (float(np.percentile(scores, 2.5)), float(np.percentile(scores, 97.5)))
 
+
+def _run_one_permutation(X_raw, y_permuted, groups, ch_names, sfreq,
+                          bad_amp_candidates, max_bad_channels,
+                          min_windows_per_subject, n_splits, seed):
+    """Single permutation iteration — designed for joblib dispatch."""
+    try:
+        out = run_full_model_selection(
+            X_raw, y_permuted, groups, ch_names, sfreq,
+            bad_amp_candidates=bad_amp_candidates,
+            max_bad_channels=max_bad_channels,
+            min_windows_per_subject=min_windows_per_subject,
+            n_splits=n_splits, seed=seed)
+        return out["subject_level_metrics"]["balanced_accuracy"]
+    except Exception:
+        return None
+
+
 def build_report(X_raw, y, groups, cv_results, ch_names, sfreq,
                   bad_amp_candidates=(200, 300, 400), max_bad_channels=3,
                   min_windows_per_subject=3, n_permutations=1000, seed=42):
@@ -719,31 +737,28 @@ def build_report(X_raw, y, groups, cv_results, ch_names, sfreq,
         unique_groups, first_idx = np.unique(groups, return_index=True)
         group_labels = y[first_idx]
 
-        permuted_bas = []
+        # Pre-generate permuted labels sequentially for deterministic seeding
+        jobs = []
         for i in range(n_permutations):
-            if (i+1) % 10 == 0:
-                logger.info(f"Permutation {i+1}/{n_permutations}...")
             shuffled_labels = rng.permutation(group_labels)
             label_map = {g: l for g, l in zip(unique_groups, shuffled_labels)}
             y_permuted = np.array([label_map[g] for g in groups])
-
             permuted_group_labels = y_permuted[first_idx]
             if len(np.unique(permuted_group_labels)) < 2:
                 continue
-            n_splits = min(5, np.min(np.unique(permuted_group_labels, return_counts=True)[1]))
-            if n_splits < 2:
-                n_splits = 2
+            ns = min(5, np.min(np.unique(permuted_group_labels, return_counts=True)[1]))
+            if ns < 2:
+                ns = 2
+            jobs.append((y_permuted, ns))
 
-            try:
-                out = run_full_model_selection(
-                    X_raw, y_permuted, groups, ch_names, sfreq,
-                    bad_amp_candidates=bad_amp_candidates,
-                    max_bad_channels=max_bad_channels,
-                    min_windows_per_subject=min_windows_per_subject,
-                    n_splits=n_splits, seed=seed)
-                permuted_bas.append(out["subject_level_metrics"]["balanced_accuracy"])
-            except (ValueError, Exception):
-                continue
+        logger.info(f"Running {len(jobs)} permutations with joblib (n_jobs=-1)...")
+        results = Parallel(n_jobs=-1)(
+            delayed(_run_one_permutation)(
+                X_raw, y_p, groups, ch_names, sfreq,
+                bad_amp_candidates, max_bad_channels,
+                min_windows_per_subject, ns, seed)
+            for y_p, ns in jobs)
+        permuted_bas = [r for r in results if r is not None]
 
         report["effective_permutations"] = len(permuted_bas)
         if permuted_bas:

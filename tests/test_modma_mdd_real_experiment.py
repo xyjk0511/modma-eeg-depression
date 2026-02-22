@@ -427,8 +427,8 @@ def test_hjorth_features_shape():
 def test_permutation_reruns_full_selection():
     """Permutation must rerun full model selection, not just nested CV."""
     import inspect
-    from modma_mdd_real_experiment import build_report
-    src = inspect.getsource(build_report)
+    from modma_mdd_real_experiment import _run_one_permutation
+    src = inspect.getsource(_run_one_permutation)
     assert "run_full_model_selection" in src
     assert "run_nested_group_cv" not in src
 
