@@ -130,13 +130,15 @@ def validate_subject_class_counts(subject_labels):
         if count < 2:
             raise ValueError(f"Class {c} has only {count} subjects after QC (need at least 2 subjects per class)")
 
-def generate_qc_report(participants_df, groups, keep_mask, no_edf_subjects, min_windows_per_subject):
-    label_map_inv = {0: 'HC', 1: 'MDD'}
+def generate_qc_report(participants_df, groups, keep_mask, no_edf_subjects, min_windows_per_subject, interp_info=None):
+    if interp_info is None:
+        interp_info = {}
     rows = []
     # Subjects with no EDF
     for sub_id, group_label in no_edf_subjects:
         rows.append({"subject": sub_id, "label": group_label, "raw_windows": 0,
-                      "kept_windows": 0, "drop_reason": "no_edf"})
+                      "kept_windows": 0, "drop_reason": "no_edf",
+                      "n_interpolated": interp_info.get(sub_id, 0)})
     # Subjects that had windows loaded
     if len(groups) > 0:
         unique_subs = np.unique(groups)
@@ -150,12 +152,25 @@ def generate_qc_report(participants_df, groups, keep_mask, no_edf_subjects, min_
                 reason = "dropped_by_min_windows"
             else:
                 reason = "kept"
-            # Find label from participants_df
             match = participants_df[participants_df["participant_id"] == sub]
             label = match["group"].iloc[0] if len(match) > 0 else "unknown"
             rows.append({"subject": sub, "label": label, "raw_windows": raw_count,
-                          "kept_windows": kept_count, "drop_reason": reason})
-    return pd.DataFrame(rows)
+                          "kept_windows": kept_count, "drop_reason": reason,
+                          "n_interpolated": interp_info.get(sub, 0)})
+    df = pd.DataFrame(rows)
+
+    # Group retention stats
+    n_mdd_total = len(df[df["label"] == "MDD"])
+    n_hc_total = len(df[df["label"] == "HC"])
+    n_mdd_kept = len(df[(df["label"] == "MDD") & (df["drop_reason"] == "kept")])
+    n_hc_kept = len(df[(df["label"] == "HC") & (df["drop_reason"] == "kept")])
+    mdd_rate = n_mdd_kept / n_mdd_total if n_mdd_total > 0 else 0.0
+    hc_rate = n_hc_kept / n_hc_total if n_hc_total > 0 else 0.0
+    balance_diff = abs(mdd_rate - hc_rate)
+    logger.info(f"Group retention - MDD: {mdd_rate:.0%}, HC: {hc_rate:.0%}, diff: {balance_diff:.0%}")
+
+    retention_stats = {"mdd_rate": mdd_rate, "hc_rate": hc_rate, "diff": balance_diff}
+    return df, retention_stats
 
 
 def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_duration=60.0, highpass_freq=0.5, bad_amp_uv=200.0):
@@ -874,7 +889,7 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
 
     # QC report uses dynamic threshold
     keep_mask = build_quality_mask(X_windows, bad_amp_uv=bad_amp_uv, max_bad_channels=dynamic_max_bad)
-    qc_report = generate_qc_report(participants_df, groups, keep_mask, no_edf_subjects, min_windows_per_subject)
+    qc_report, retention_stats = generate_qc_report(participants_df, groups, keep_mask, no_edf_subjects, min_windows_per_subject, interp_info=interp_info)
     qc_report.to_csv(os.path.join(output_dir, "qc_report.csv"), index=False)
 
     # Validation uses most lenient candidate so stricter thresholds don't block the pipeline
@@ -943,6 +958,7 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
                                   cv_results["y_subj_true"].tolist()))
     conclusion = determine_conclusion(report, cv_subject_labels)
     report["conclusion"] = conclusion
+    report["group_retention"] = retention_stats
 
     metrics_path = os.path.join(output_dir, "metrics.json")
     with open(metrics_path, "w", encoding="utf-8") as f:
