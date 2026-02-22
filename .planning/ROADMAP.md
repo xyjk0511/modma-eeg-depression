@@ -11,6 +11,7 @@ This project fixes the QC bottleneck that drops 80% of subjects (11/53 retained)
 - [x] **Phase 3: Feature Reduction & Pipeline Optimization** - Reduce features from 139→29 dims, simplify pipeline, accelerate permutation test
 - [x] **Phase 4: Statistical Validation** - BA=0.613 (>0.60) but p=0.135 — negative conclusion
 - [x] **Phase 5: Confirmatory Replication** - Pre-register locked pipeline, train on MODMA, test on TDBRAIN → negative (BA=0.500)
+- [ ] **Phase 6: Literature-Informed Feature Expansion** - Expand from 5→15 dims based on literature (beta power, PLV connectivity, temporal/central regions), validate internally then cross-dataset
 
 ## Phase Details
 
@@ -88,6 +89,21 @@ Plans:
 - [x] 05-01-PLAN.md — Pre-registration document + external data adapter + git tag
 - [x] 05-02-PLAN.md — Replication runner + TDBRAIN test → negative (BA=0.500, p=1.0)
 
+### Phase 6: Literature-Informed Feature Expansion
+**Goal**: Expand feature set from 5→15 dims based on literature evidence, validate internally on MODMA then cross-dataset on TDBRAIN
+**Depends on**: Phase 5
+**Requirements**: FEAT-02, VAL-01, REP-01
+**Success Criteria** (what must be TRUE):
+  1. extract_features() returns 15 features (5 existing + 4 beta + 3 connectivity + 3 temporal/central)
+  2. MODMA internal CV shows 15-dim BA vs 5-dim BA comparison
+  3. TDBRAIN external test with 15-dim features produces BA, CI, p-value report
+  4. Feature distribution analysis comparing MODMA vs TDBRAIN generated
+**Plans**: 2 plans
+
+Plans:
+- [ ] 06-01-PLAN.md — 15-dim feature expansion + MODMA internal 5-dim vs 15-dim validation
+- [ ] 06-02-PLAN.md — Cross-dataset replication on TDBRAIN with 15-dim features
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -97,3 +113,4 @@ Plans:
 | 3. Feature & Permutation Optimization | 2/2 | Complete | 2026-02-22 |
 | 4. Statistical Validation | 1/1 | Complete (negative) | 2026-02-22 |
 | 5. Confirmatory Replication | 2/2 | Complete (negative: BA=0.500) | 2026-02-22 |
+| 6. Feature Expansion | 0/2 | Planned | — |
