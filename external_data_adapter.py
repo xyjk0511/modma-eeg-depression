@@ -69,6 +69,7 @@ def load_tdbrain_subjects(tdbrain_root):
     df["participant_id"] = df[id_col]
     df = df.dropna(subset=["group"])
     df = df[df["group"].isin(["MDD", "HC"])][["participant_id", "group"]]
+    df = df.drop_duplicates(subset="participant_id", keep="first")
 
     n_mdd = (df["group"] == "MDD").sum()
     n_hc = (df["group"] == "HC").sum()

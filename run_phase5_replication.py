@@ -252,8 +252,7 @@ if __name__ == "__main__":
     if not os.path.isdir(args.tdbrain_root):
         logger.error(
             f"TDBRAIN root not found: {args.tdbrain_root}\n"
-            "Please download TDBRAIN (OpenNeuro ds003838) first.\n"
-            "  aws s3 sync --no-sign-request s3://openneuro.org/ds003838 <local-path>\n"
+            "Download TDBRAIN from https://brainclinics.com/resources/\n"
             "Then re-run with --tdbrain-root <local-path>"
         )
         sys.exit(1)
