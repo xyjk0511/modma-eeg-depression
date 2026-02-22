@@ -11,26 +11,17 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import mne
-from scipy.signal import welch, csd
+from scipy.signal import welch
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
-from sklearn.feature_selection import SelectKBest, f_classif
-from sklearn.decomposition import PCA
+from sklearn.feature_selection import f_classif
 from sklearn.svm import SVC
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedGroupKFold, GridSearchCV
-from sklearn.metrics import roc_auc_score, f1_score, accuracy_score, balanced_accuracy_score, confusion_matrix, roc_curve
+from sklearn.metrics import roc_auc_score, f1_score, balanced_accuracy_score, confusion_matrix, roc_curve
 import time
 from joblib import Parallel, delayed
 
-try:
-    from lightgbm import LGBMClassifier
-    HAS_LGBM = True
-except ImportError:
-    HAS_LGBM = False
-
-
-_lgbm_warned = False
 logger = logging.getLogger(__name__)
 
 REGIONS = ["frontal", "central", "temporal", "parietal", "occipital"]
@@ -312,6 +303,7 @@ def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_du
     return result
 
 def extract_features(X, sfreq, ch_names=None):
+    """Extract 29-dim features: 20 PSD-rel + 2 alpha-asym + 5 TBR + 2 riem."""
     n_win, n_ch, n_times = X.shape
     features = []
     feature_names = []
@@ -320,79 +312,80 @@ def extract_features(X, sfreq, ch_names=None):
         ch_names = [f"ch{i}" for i in range(n_ch)]
     region_idx = build_region_indices(ch_names)
 
-    # Per-channel PSD computation
+    # Per-channel PSD
     nperseg = min(n_times, int(sfreq * 2))
     freqs, psd = welch(X, fs=sfreq, axis=2, nperseg=nperseg)
     bands = {"delta": (1, 4), "theta": (4, 8), "alpha": (8, 13), "beta": (13, 30)}
 
-    # Per-channel band power
     band_power = {}
     for band_name, (fmin, fmax) in bands.items():
         mask = (freqs >= fmin) & (freqs <= fmax)
         band_power[band_name] = np.mean(psd[:, :, mask], axis=2)
     total_power = np.sum(psd, axis=2)
 
-    # Region-aggregated features: std, abs band power, rel band power
+    # 1) PSD relative power per region per band (5 regions x 4 bands = 20 dims)
     for region in REGIONS:
         idx = region_idx[region]
         if not idx:
-            features.append(np.zeros((n_win, 1 + 2 * len(bands))))
-            feature_names.append(f"{region}_std")
+            features.append(np.zeros((n_win, len(bands))))
             for b in bands:
-                feature_names.extend([f"{region}_{b}", f"{region}_{b}_rel"])
+                feature_names.append(f"{region}_{b}_rel")
             continue
-        # Std
-        features.append(np.mean(np.std(X[:, idx, :], axis=2), axis=1, keepdims=True))
-        feature_names.append(f"{region}_std")
         for b in bands:
             bp = np.mean(band_power[b][:, idx], axis=1, keepdims=True)
             tp = np.mean(total_power[:, idx], axis=1, keepdims=True)
-            features.append(bp)
             features.append(bp / (tp + 1e-10))
-            feature_names.extend([f"{region}_{b}", f"{region}_{b}_rel"])
+            feature_names.append(f"{region}_{b}_rel")
 
-    # DE features
-    de_feats, de_names = compute_de_features(X, sfreq, region_idx)
-    features.append(de_feats)
-    feature_names.extend(de_names)
+    # 2) Alpha asymmetry frontal + temporal (2 dims)
+    features.append(_alpha_asymmetry(band_power["alpha"], ch_names, n_win, "frontal"))
+    feature_names.append("alpha_asymmetry_frontal")
+    features.append(_alpha_asymmetry(band_power["alpha"], ch_names, n_win, "temporal"))
+    feature_names.append("alpha_asymmetry_temporal")
 
-    # Hjorth features
-    hjorth_feats, hjorth_names = compute_hjorth_features(X, region_idx)
-    features.append(hjorth_feats)
-    feature_names.extend(hjorth_names)
+    # 3) Theta/Beta ratio per region (5 dims)
+    for region in REGIONS:
+        idx = region_idx[region]
+        if not idx:
+            features.append(np.zeros((n_win, 1)))
+        else:
+            theta = np.mean(band_power["theta"][:, idx], axis=1, keepdims=True)
+            beta = np.mean(band_power["beta"][:, idx], axis=1, keepdims=True)
+            features.append(theta / (beta + 1e-10))
+        feature_names.append(f"{region}_theta_beta_ratio")
 
-    # Lateral asymmetry (frontal + temporal, all bands)
-    asym_feats, asym_names = compute_lateral_asymmetry(band_power, ch_names, n_win)
-    features.append(asym_feats)
-    feature_names.extend(asym_names)
-
-    # Alpha asymmetry (frontal)
-    features.append(_alpha_asymmetry(band_power["alpha"], ch_names, n_win))
-    feature_names.append("alpha_asymmetry")
-
-    # Connectivity features (imaginary coherence)
-    conn_feats, conn_names = compute_connectivity_features(X, sfreq, region_idx)
-    features.append(conn_feats)
-    feature_names.extend(conn_names)
-
-    # Riemannian tangent space features
-    riem_feats, riem_names = compute_riemannian_features(X, region_idx)
-    features.append(riem_feats)
-    feature_names.extend(riem_names)
+    # 4) Riemannian top-2: central-temporal, central-parietal (2 dims)
+    riem_regions = ["central", "temporal", "parietal"]
+    region_signals = []
+    for r in riem_regions:
+        idx = region_idx[r]
+        region_signals.append(
+            np.mean(X[:, idx, :], axis=1) if idx else np.zeros((n_win, n_times))
+        )
+    region_signals = np.stack(region_signals, axis=1)  # (n_win, 3, n_times)
+    covs = np.array([np.cov(region_signals[i]) for i in range(n_win)])
+    covs += 1e-6 * np.eye(3)[np.newaxis]
+    log_covs = np.log(np.abs(covs) + 1e-10)
+    features.append(log_covs[:, 0, 1:2])  # central-temporal
+    feature_names.append("riem_central_temporal")
+    features.append(log_covs[:, 0, 2:3])  # central-parietal
+    feature_names.append("riem_central_parietal")
 
     return np.column_stack(features), feature_names
 
 
-def _alpha_asymmetry(alpha_power, ch_names, n_win):
-    """Compute frontal alpha asymmetry using region-aware L/R channels."""
+def _alpha_asymmetry(alpha_power, ch_names, n_win, region="frontal"):
+    """Compute alpha asymmetry using region-aware L/R channels."""
     ch_set = set(ch_names)
-    # Try EGI first
-    left = [ch_names.index(c) for c in EGI128_LEFT.get("frontal", []) if c in ch_set]
-    right = [ch_names.index(c) for c in EGI128_RIGHT.get("frontal", []) if c in ch_set]
+    left = [ch_names.index(c) for c in EGI128_LEFT.get(region, []) if c in ch_set]
+    right = [ch_names.index(c) for c in EGI128_RIGHT.get(region, []) if c in ch_set]
     if not left or not right:
-        # Fallback to 10-20
-        left = [ch_names.index(c) for c in ["F3", "Fp1", "F7"] if c in ch_set]
-        right = [ch_names.index(c) for c in ["F4", "Fp2", "F8"] if c in ch_set]
+        if region == "frontal":
+            left = [ch_names.index(c) for c in ["F3", "Fp1", "F7"] if c in ch_set]
+            right = [ch_names.index(c) for c in ["F4", "Fp2", "F8"] if c in ch_set]
+        elif region == "temporal":
+            left = [ch_names.index(c) for c in ["T3", "T5", "T7"] if c in ch_set]
+            right = [ch_names.index(c) for c in ["T4", "T6", "T8"] if c in ch_set]
     if not left or not right:
         return np.zeros((n_win, 1))
     l_alpha = np.mean(alpha_power[:, left], axis=1)
@@ -402,139 +395,15 @@ def _alpha_asymmetry(alpha_power, ch_names, n_win):
     np.divide(r_alpha - l_alpha, denom, out=result, where=denom != 0)
     return result[:, np.newaxis]
 
-def compute_de_features(X, sfreq, region_idx):
-    """Differential entropy per band per region: 0.5 * log(2*pi*e*var)."""
-    n_win = X.shape[0]
-    bands = {"delta": (1, 4), "theta": (4, 8), "alpha": (8, 13), "beta": (13, 30)}
-    nperseg = min(X.shape[2], int(sfreq * 2))
-    freqs, psd = welch(X, fs=sfreq, axis=2, nperseg=nperseg)
-    features, names = [], []
-    for region in REGIONS:
-        idx = region_idx[region]
-        for band_name, (fmin, fmax) in bands.items():
-            if not idx:
-                features.append(np.zeros((n_win, 1)))
-            else:
-                mask = (freqs >= fmin) & (freqs <= fmax)
-                bp = np.mean(psd[:, idx][:, :, mask], axis=(1, 2))
-                de = 0.5 * np.log(2 * np.pi * np.e * (bp + 1e-10))
-                features.append(de[:, np.newaxis])
-            names.append(f"{region}_{band_name}_de")
-    return np.column_stack(features), names
-
-
-def compute_hjorth_features(X, region_idx):
-    """Hjorth activity, mobility, complexity per region."""
-    n_win = X.shape[0]
-    features, names = [], []
-    for region in REGIONS:
-        idx = region_idx[region]
-        if not idx:
-            features.append(np.zeros((n_win, 3)))
-            names.extend([f"{region}_activity", f"{region}_mobility", f"{region}_complexity"])
-            continue
-        sig = np.mean(X[:, idx, :], axis=1)  # (n_win, n_times)
-        d1 = np.diff(sig, axis=1)
-        d2 = np.diff(d1, axis=1)
-        activity = np.var(sig, axis=1, keepdims=True)
-        m0 = np.std(sig, axis=1)
-        m1 = np.std(d1, axis=1)
-        m2 = np.std(d2, axis=1)
-        mobility = (m1 / (m0 + 1e-10))[:, np.newaxis]
-        complexity = ((m2 / (m1 + 1e-10)) / (m1 / (m0 + 1e-10) + 1e-10))[:, np.newaxis]
-        features.append(np.hstack([activity, mobility, complexity]))
-        names.extend([f"{region}_activity", f"{region}_mobility", f"{region}_complexity"])
-    return np.column_stack(features), names
-
-
-def compute_lateral_asymmetry(band_power, ch_names, n_win):
-    """L-R asymmetry for frontal and temporal regions."""
-    ch_set = set(ch_names)
-    features, names = [], []
-    for region in ["frontal", "temporal"]:
-        left = [ch_names.index(c) for c in EGI128_LEFT.get(region, []) if c in ch_set]
-        right = [ch_names.index(c) for c in EGI128_RIGHT.get(region, []) if c in ch_set]
-        for band_name, bp in band_power.items():
-            if not left or not right:
-                features.append(np.zeros((n_win, 1)))
-            else:
-                l_pow = np.mean(bp[:, left], axis=1)
-                r_pow = np.mean(bp[:, right], axis=1)
-                denom = r_pow + l_pow
-                asym = np.zeros_like(denom)
-                np.divide(r_pow - l_pow, denom, out=asym, where=denom != 0)
-                features.append(asym[:, np.newaxis])
-            names.append(f"{region}_{band_name}_asym")
-    return np.column_stack(features), names
-
-
-def compute_connectivity_features(X, sfreq, region_idx):
-    """Imaginary coherence between region pairs, 10 pairs x 4 bands = 40 dims."""
-    n_win = X.shape[0]
-    bands = {"delta": (1, 4), "theta": (4, 8), "alpha": (8, 13), "beta": (13, 30)}
-    pairs = [(REGIONS[i], REGIONS[j]) for i in range(5) for j in range(i + 1, 5)]
-    nperseg = min(X.shape[2], int(sfreq * 2))
-    region_signals = {}
-    for region in REGIONS:
-        idx = region_idx[region]
-        region_signals[region] = np.mean(X[:, idx, :], axis=1) if idx else np.zeros((n_win, X.shape[2]))
-    # Precompute auto-spectra per region
-    auto_psd = {}
-    for region in REGIONS:
-        _, Pxx = csd(region_signals[region], region_signals[region], fs=sfreq, nperseg=nperseg, axis=1)
-        auto_psd[region] = np.real(Pxx)
-    features, names = [], []
-    for r1, r2 in pairs:
-        freqs_c, Pxy = csd(region_signals[r1], region_signals[r2], fs=sfreq, nperseg=nperseg, axis=1)
-        for band_name, (fmin, fmax) in bands.items():
-            mask = (freqs_c >= fmin) & (freqs_c <= fmax)
-            # Per-bin ImCoh = |Im(Cxy)| / sqrt(Pxx * Pyy), then average across band
-            im_cxy = np.abs(np.imag(Pxy[:, mask]))
-            denom = np.sqrt(auto_psd[r1][:, mask] * auto_psd[r2][:, mask]) + 1e-10
-            imcoh = np.mean(im_cxy / denom, axis=1)
-            features.append(imcoh[:, np.newaxis])
-            names.append(f"imcoh_{r1}_{r2}_{band_name}")
-    return np.column_stack(features), names
-
-
-def compute_riemannian_features(X, region_idx):
-    """Log-covariance upper-triangle from 5-region signals = 15 dims.
-
-    Uses log of covariance entries (Riemannian-inspired) without TangentSpace
-    fit, so train/test feature spaces are always consistent.
-    """
-    n_win = X.shape[0]
-    region_data = []
-    for region in REGIONS:
-        idx = region_idx[region]
-        region_data.append(np.mean(X[:, idx, :], axis=1) if idx else np.zeros((n_win, X.shape[2])))
-    region_data = np.stack(region_data, axis=1)  # (n_win, 5, n_times)
-    triu_idx = np.triu_indices(5)
-    names = [f"riem_{REGIONS[i]}_{REGIONS[j]}" for i, j in zip(triu_idx[0], triu_idx[1])]
-    covs = np.array([np.cov(region_data[i]) for i in range(n_win)])
-    covs += 1e-6 * np.eye(5)[np.newaxis]
-    log_covs = np.log(np.abs(covs) + 1e-10)
-    return log_covs[:, triu_idx[0], triu_idx[1]], names
-
-
 def build_feature_model_pipeline(model_name="svm", reducer="none"):
+    """Scaler + SVM or Logistic only."""
     steps = [("scaler", StandardScaler())]
-    if reducer == "pca":
-        steps.append(("pca", PCA(n_components=0.95)))
-    elif reducer == "selectkbest":
-        steps.append(("selectkbest", SelectKBest(f_classif, k=64)))
-        
     if model_name == "svm":
         steps.append(("clf", SVC(kernel="rbf", class_weight="balanced", probability=True, random_state=42)))
     elif model_name == "logistic":
         steps.append(("clf", LogisticRegression(class_weight="balanced", max_iter=1000, random_state=42)))
-    elif model_name == "lgbm":
-        if not HAS_LGBM:
-            raise ValueError("LightGBM not installed")
-        steps.append(("clf", LGBMClassifier(class_weight="balanced", n_estimators=100, random_state=42, verbose=-1)))
     else:
         raise ValueError(f"Unknown classifier {model_name}")
-        
     return Pipeline(steps)
 
 def compute_subject_balanced_sample_weights(groups):
@@ -544,244 +413,12 @@ def compute_subject_balanced_sample_weights(groups):
     return w
 
 def _get_model_candidates():
-    """Return list of (model_name, param_grid) tuples."""
-    candidates = [
+    """Return list of (model_name, param_grid) tuples. SVM + Logistic only."""
+    return [
         ("svm", {"clf__C": [0.1, 1.0, 10.0]}),
         ("logistic", {"clf__C": [0.01, 0.1, 1.0]}),
     ]
-    if HAS_LGBM:
-        candidates.append(("lgbm", {"clf__n_estimators": [50, 100], "clf__max_depth": [3, 5]}))
-    return candidates
 
-
-def _apply_qc_and_extract(X_raw, y, groups, bad_amp_uv, max_bad_channels,
-                           min_windows_per_subject, ch_names, sfreq):
-    """Apply QC filtering and extract features. Returns (features, y, groups) or None."""
-    mask = build_quality_mask(X_raw, bad_amp_uv=bad_amp_uv, max_bad_channels=max_bad_channels)
-    # Drop subjects with too few windows
-    kept_groups = groups[mask]
-    if len(kept_groups) == 0:
-        return None
-    unique_g, counts = np.unique(kept_groups, return_counts=True)
-    valid_g = set(unique_g[counts >= min_windows_per_subject])
-    final_mask = mask & np.isin(groups, list(valid_g))
-    if final_mask.sum() == 0:
-        return None
-    X_f = X_raw[final_mask]
-    y_f = y[final_mask]
-    g_f = groups[final_mask]
-    # Need at least 2 classes
-    subj_labels = {}
-    for g, lab in zip(g_f, y_f):
-        if g not in subj_labels:
-            subj_labels[g] = lab
-    classes = set(subj_labels.values())
-    if len(classes) < 2:
-        return None
-    feats, names = extract_features(X_f, sfreq=sfreq, ch_names=ch_names)
-    return feats, y_f, g_f, names
-
-
-def run_full_model_selection(X_raw, y, groups, ch_names, sfreq,
-                              bad_amp_candidates=(200, 300, 400),
-                              max_bad_channels=3,
-                              min_windows_per_subject=3,
-                              n_splits=5, seed=42):
-    """Outer CV with inner search over QC thresholds + models + hyperparams."""
-    global _lgbm_warned
-    if not HAS_LGBM and not _lgbm_warned:
-        logger.warning("LightGBM not installed, using SVM and logistic regression only")
-        _lgbm_warned = True
-    # Try each QC candidate to find one that works for outer CV splitting
-    result = None
-    for qc_thr in bad_amp_candidates:
-        result = _apply_qc_and_extract(X_raw, y, groups, qc_thr, max_bad_channels,
-                                        min_windows_per_subject, ch_names, sfreq)
-        if result is not None:
-            break
-    if result is None:
-        raise ValueError("No valid data after QC with any candidate threshold")
-    feats_default, y_default, g_default, feat_names = result
-
-    cv_outer = StratifiedGroupKFold(n_splits=n_splits)
-    y_true_subject = {}
-    y_pred_subject_probs = {}
-    fold_results = []
-
-    for fold_i, (train_ix, test_ix) in enumerate(cv_outer.split(feats_default, y_default, groups=g_default)):
-        train_subjects = set(g_default[train_ix])
-        test_subjects = set(g_default[test_ix])
-
-        # Get raw windows for train/test subjects
-        train_raw_mask = np.isin(groups, list(train_subjects))
-        test_raw_mask = np.isin(groups, list(test_subjects))
-
-        best_score, best_cfg = -1, None
-
-        for qc_thr in bad_amp_candidates:
-            res = _apply_qc_and_extract(X_raw[train_raw_mask], y[train_raw_mask],
-                                         groups[train_raw_mask], qc_thr, max_bad_channels,
-                                         min_windows_per_subject, ch_names, sfreq)
-            if res is None:
-                continue
-            X_tr, y_tr, g_tr, _ = res
-
-            ug, fi = np.unique(g_tr, return_index=True)
-            gl = y_tr[fi]
-            min_cls = np.min(np.bincount(gl)) if len(np.unique(gl)) > 1 else 0
-
-            for model_name, param_grid in _get_model_candidates():
-                pipe = build_feature_model_pipeline(model_name=model_name, reducer="none")
-                if min_cls >= 3:
-                    inner_cv = StratifiedGroupKFold(n_splits=min(3, min_cls))
-                    grid = GridSearchCV(pipe, param_grid, cv=inner_cv, scoring="balanced_accuracy")
-                    try:
-                        grid.fit(X_tr, y_tr, groups=g_tr)
-                        score = grid.best_score_
-                        best_params = grid.best_params_
-                    except Exception:
-                        continue
-                else:
-                    try:
-                        sw = compute_subject_balanced_sample_weights(g_tr)
-                        pipe.fit(X_tr, y_tr, clf__sample_weight=sw)
-                        score = 0.5  # no inner CV score available
-                        best_params = {}
-                    except Exception:
-                        continue
-
-                if score > best_score:
-                    best_score = score
-                    best_cfg = {"qc_thr": qc_thr, "model": model_name, "params": best_params}
-
-        # Fallback
-        if best_cfg is None:
-            best_cfg = {"qc_thr": bad_amp_candidates[0], "model": "svm", "params": {}}
-
-        # Retrain on full train with best config, predict on test
-        res_tr = _apply_qc_and_extract(X_raw[train_raw_mask], y[train_raw_mask],
-                                        groups[train_raw_mask], best_cfg["qc_thr"],
-                                        max_bad_channels, min_windows_per_subject, ch_names, sfreq)
-        res_te = _apply_qc_and_extract(X_raw[test_raw_mask], y[test_raw_mask],
-                                        groups[test_raw_mask], best_cfg["qc_thr"],
-                                        max_bad_channels, 1, ch_names, sfreq)
-
-        if res_tr is None or res_te is None:
-            continue
-
-        X_tr, y_tr, g_tr, _ = res_tr
-        X_te, y_te, g_te, _ = res_te
-
-        pipe = build_feature_model_pipeline(model_name=best_cfg["model"], reducer="none")
-        for k, v in best_cfg["params"].items():
-            part, param = k.split("__", 1)
-            setattr(pipe.named_steps[part], param, v)
-        sw = compute_subject_balanced_sample_weights(g_tr)
-        pipe.fit(X_tr, y_tr, clf__sample_weight=sw)
-        preds = pipe.predict_proba(X_te)[:, 1]
-
-        for i, g in enumerate(g_te):
-            if g not in y_true_subject:
-                y_true_subject[g] = y_te[i]
-                y_pred_subject_probs[g] = []
-            y_pred_subject_probs[g].append(preds[i])
-
-        fold_results.append({
-            "fold": fold_i, **best_cfg, "inner_score": best_score,
-            "n_train_subjects": len(train_subjects), "n_test_subjects": len(test_subjects),
-        })
-
-    if not y_true_subject:
-        raise ValueError("No valid outer-fold predictions after QC/model selection")
-
-    subj_list = list(y_true_subject.keys())
-    y_subj_true = np.array([y_true_subject[g] for g in subj_list])
-    y_subj_prob = np.array([np.mean(y_pred_subject_probs[g]) for g in subj_list])
-    y_subj_pred = (y_subj_prob >= 0.5).astype(int)
-
-    metrics = {
-        "balanced_accuracy": balanced_accuracy_score(y_subj_true, y_subj_pred),
-        "roc_auc": roc_auc_score(y_subj_true, y_subj_prob) if len(np.unique(y_subj_true)) > 1 else 0.5,
-        "f1": f1_score(y_subj_true, y_subj_pred, zero_division=0),
-    }
-
-    return {
-        "primary_metric_level": "subject",
-        "subject_level_metrics": metrics,
-        "y_subj_true": y_subj_true,
-        "y_subj_prob": y_subj_prob,
-        "subj_list": subj_list,
-        "fold_results": fold_results,
-    }
-
-
-def run_nested_group_cv(X, y, groups, n_splits=5):
-    cv_outer = StratifiedGroupKFold(n_splits=n_splits)
-    
-    y_pred_probs = np.zeros(len(y))
-    y_true_subject = {}
-    y_pred_subject_probs = {}
-    
-    leakage_detected = False
-    
-    for train_ix, test_ix in cv_outer.split(X, y, groups=groups):
-        train_groups = set(groups[train_ix])
-        test_groups = set(groups[test_ix])
-        if not train_groups.isdisjoint(test_groups):
-            leakage_detected = True
-            
-        X_train, X_test = X[train_ix], X[test_ix]
-        y_train, y_test = y[train_ix], y[test_ix]
-        g_train = groups[train_ix]
-        
-        sample_weights = compute_subject_balanced_sample_weights(g_train)
-
-        # Inner CV for hyperparameter tuning
-        train_unique_groups, train_first_idx = np.unique(g_train, return_index=True)
-        train_group_labels = y_train[train_first_idx]
-        min_class_in_train = np.min(np.bincount(train_group_labels)) if len(np.unique(train_group_labels)) > 1 else 0
-
-        base_pipe = build_feature_model_pipeline(model_name="svm", reducer="none")
-        if min_class_in_train >= 3:
-            inner_cv = StratifiedGroupKFold(n_splits=min(3, min_class_in_train))
-            param_grid = {"clf__C": [0.1, 1.0, 10.0]}
-            grid = GridSearchCV(base_pipe, param_grid, cv=inner_cv, scoring="balanced_accuracy")
-            grid.fit(X_train, y_train, groups=g_train)
-            best_C = grid.best_params_["clf__C"]
-            pipe = build_feature_model_pipeline(model_name="svm", reducer="none")
-            pipe.named_steps["clf"].C = best_C
-        else:
-            pipe = base_pipe
-        pipe.fit(X_train, y_train, clf__sample_weight=sample_weights)
-        
-        preds = pipe.predict_proba(X_test)[:, 1]
-        y_pred_probs[test_ix] = preds
-        
-        for i, g in enumerate(groups[test_ix]):
-            if g not in y_true_subject:
-                y_true_subject[g] = y_test[i]
-                y_pred_subject_probs[g] = []
-            y_pred_subject_probs[g].append(preds[i])
-            
-    subj_list = list(y_true_subject.keys())
-    y_subj_true = np.array([y_true_subject[g] for g in subj_list])
-    y_subj_prob = np.array([np.mean(y_pred_subject_probs[g]) for g in subj_list])
-    y_subj_pred = (y_subj_prob >= 0.5).astype(int)
-    
-    metrics = {
-        "balanced_accuracy": balanced_accuracy_score(y_subj_true, y_subj_pred),
-        "roc_auc": roc_auc_score(y_subj_true, y_subj_prob) if len(np.unique(y_subj_true)) > 1 else 0.5,
-        "f1": f1_score(y_subj_true, y_subj_pred, zero_division=0),
-    }
-    
-    return {
-        "leakage_detected": leakage_detected,
-        "primary_metric_level": "subject",
-        "subject_level_metrics": metrics,
-        "y_subj_true": y_subj_true,
-        "y_subj_prob": y_subj_prob,
-        "subj_list": subj_list
-    }
 
 def get_ci_bootstrap(y_true, y_pred, metric_fn, n_bootstraps=1000, seed=42):
     rng = np.random.RandomState(seed)
@@ -795,23 +432,6 @@ def get_ci_bootstrap(y_true, y_pred, metric_fn, n_bootstraps=1000, seed=42):
     if not scores:
         return (0.0, 0.0)
     return (float(np.percentile(scores, 2.5)), float(np.percentile(scores, 97.5)))
-
-
-def _run_one_permutation(X_raw, y_permuted, groups, ch_names, sfreq,
-                          bad_amp_candidates, max_bad_channels,
-                          min_windows_per_subject, n_splits, seed):
-    """Single permutation iteration — designed for joblib dispatch."""
-    try:
-        out = run_full_model_selection(
-            X_raw, y_permuted, groups, ch_names, sfreq,
-            bad_amp_candidates=bad_amp_candidates,
-            max_bad_channels=max_bad_channels,
-            min_windows_per_subject=min_windows_per_subject,
-            n_splits=n_splits, seed=seed)
-        return out["subject_level_metrics"]["balanced_accuracy"]
-    except Exception as e:
-        logger.warning("Permutation failed: %s", e)
-        return None
 
 
 def build_report(X_raw, y, groups, cv_results, ch_names, sfreq,
