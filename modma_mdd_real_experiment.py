@@ -172,7 +172,7 @@ def generate_qc_report(participants_df, groups, keep_mask, no_edf_subjects, min_
     return df, retention_stats
 
 
-def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_duration=60.0, highpass_freq=0.5, bad_amp_uv=200.0):
+def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_duration=60.0, highpass_freq=1.0, bad_amp_uv=200.0):
     all_epochs = []
     labels = []
     groups = []
@@ -854,7 +854,7 @@ def determine_conclusion(report, subject_labels):
     }
 
 
-def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq, n_permutations, seed, min_windows_per_subject, window_sec, crop_duration, bad_amp_uv=200.0, highpass_freq=0.5, n_jobs=4):
+def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq, n_permutations, seed, min_windows_per_subject, window_sec, crop_duration, bad_amp_uv=200.0, highpass_freq=1.0, n_jobs=4):
     os.makedirs(output_dir, exist_ok=True)
     participants_path = os.path.join(bids_root, "participants.tsv")
 
