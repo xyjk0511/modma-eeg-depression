@@ -101,7 +101,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 06-01-PLAN.md — 15-dim feature expansion + MODMA internal 5-dim vs 15-dim validation
+- [x] 06-01-PLAN.md — 15-dim feature expansion + MODMA internal 5-dim vs 15-dim validation
 - [ ] 06-02-PLAN.md — Cross-dataset replication on TDBRAIN with 15-dim features
 
 ## Progress
@@ -113,4 +113,4 @@ Plans:
 | 3. Feature & Permutation Optimization | 2/2 | Complete | 2026-02-22 |
 | 4. Statistical Validation | 1/1 | Complete (negative) | 2026-02-22 |
 | 5. Confirmatory Replication | 2/2 | Complete (negative: BA=0.500) | 2026-02-22 |
-| 6. Feature Expansion | 0/2 | Planned | — |
+| 6. Feature Expansion | 1/2 | In Progress | — |
