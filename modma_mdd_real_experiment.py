@@ -640,21 +640,18 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
     dynamic_max_bad = max(1, int(n_channels * 0.12))
     logger.info(f"Dynamic max_bad_channels: {dynamic_max_bad} (12% of {n_channels})")
 
-    bad_amp_candidates = (bad_amp_uv,)
-
-    # QC report uses dynamic threshold
+    # QC mask with fixed 200uV + dynamic_max_bad
     keep_mask = build_quality_mask(X_windows, bad_amp_uv=bad_amp_uv, max_bad_channels=dynamic_max_bad)
     qc_report, retention_stats = generate_qc_report(participants_df, groups, keep_mask, no_edf_subjects, min_windows_per_subject, interp_info=interp_info)
     qc_report.to_csv(os.path.join(output_dir, "qc_report.csv"), index=False)
 
-    # Validation uses most lenient candidate so stricter thresholds don't block the pipeline
-    lenient_mask = build_quality_mask(X_windows, bad_amp_uv=max(bad_amp_candidates), max_bad_channels=dynamic_max_bad)
-    kept_groups = groups[lenient_mask]
+    # Filter by QC mask + min windows per subject
+    kept_groups = groups[keep_mask]
     if len(kept_groups) == 0:
-        raise ValueError("No windows survive QC even at most lenient threshold")
+        raise ValueError("No windows survive QC")
     unique_groups, counts = np.unique(kept_groups, return_counts=True)
     valid_groups = unique_groups[counts >= min_windows_per_subject]
-    final_mask = lenient_mask & np.isin(groups, list(valid_groups))
+    final_mask = keep_mask & np.isin(groups, list(valid_groups))
 
     validate_post_qc_availability(groups, y_windows, final_mask, min_windows_per_subject)
 
@@ -668,7 +665,7 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
             subject_labels[g] = label
     validate_subject_class_counts(subject_labels)
 
-    # Determine n_splits from lenient-filtered data
+    # Determine n_splits from filtered data
     unique_groups, first_idx = np.unique(groups_filtered, return_index=True)
     group_labels = y_filtered[first_idx]
     if len(np.unique(group_labels)) > 1:
@@ -678,29 +675,21 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
     if n_splits < 2:
         n_splits = 2
 
-    t0 = time.time()
-    cv_results = run_full_model_selection(
-        X_windows, y_windows, groups, ch_names, resample_sfreq,
-        bad_amp_candidates=bad_amp_candidates,
-        max_bad_channels=dynamic_max_bad,
-        min_windows_per_subject=min_windows_per_subject,
-        n_splits=n_splits, seed=seed)
+    # Extract features ONCE
+    features, feature_names = extract_features(X_filtered, sfreq=resample_sfreq, ch_names=ch_names)
 
-    report = build_report(
-        X_windows, y_windows, groups, cv_results, ch_names, resample_sfreq,
-        bad_amp_candidates=bad_amp_candidates,
-        max_bad_channels=dynamic_max_bad,
-        min_windows_per_subject=min_windows_per_subject,
-        n_permutations=n_permutations, seed=seed, n_jobs=n_jobs)
+    t0 = time.time()
+    cv_results = run_simplified_cv(features, y_filtered, groups_filtered, n_splits, seed)
+
+    report = build_report(features, y_filtered, groups_filtered, cv_results,
+                          n_permutations=n_permutations, seed=seed,
+                          n_jobs=n_jobs, n_splits=n_splits)
     report["elapsed_seconds"] = round(time.time() - t0, 1)
 
     # Save model comparison
     if cv_results.get("fold_results"):
         pd.DataFrame(cv_results["fold_results"]).to_csv(
             os.path.join(output_dir, "model_comparison.csv"), index=False)
-
-    # Feature importance on lenient-QC filtered data
-    features, feature_names = extract_features(X_filtered, sfreq=resample_sfreq, ch_names=ch_names)
 
     # Save permutation scores as separate CSV
     perm_scores = report.pop("permutation_scores", None)
