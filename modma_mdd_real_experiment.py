@@ -241,14 +241,13 @@ def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_du
             n_channels = data.shape[0]
             window_size = int(window_sec * raw.info['sfreq'])
 
-            # Skip Window 0 (filter transient); per-window post-interpolation QC
+            # Skip Window 0 (filter transient); per-window QC with dynamic threshold
+            max_bad_win = int(n_channels * 0.12)
             for s in range(window_size, data.shape[1] - window_size + 1, window_size):
                 segment = data[:, s:s + window_size]
                 bad_ch_count = np.sum(np.any(np.abs(segment) > thr_v, axis=1))
-                if bad_ch_count > int(n_channels * 0.25):
-                    continue  # >25% bad channels, discard
-                if bad_ch_count > 0:
-                    continue  # any channel still exceeds threshold post-interpolation, discard
+                if bad_ch_count > max_bad_win:
+                    continue  # exceeds 12% bad channel threshold, discard
                 all_epochs.append(segment)
                 labels.append(label_map[group_label])
                 groups.append(sub_id)
