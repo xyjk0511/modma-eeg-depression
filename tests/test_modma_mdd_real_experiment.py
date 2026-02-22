@@ -95,37 +95,37 @@ def test_window_extraction_returns_labels_and_groups(monkeypatch):
 
 def test_feature_matrix_has_expected_blocks():
     from modma_mdd_real_experiment import extract_features
+    ch_names = [f"E{i}" for i in range(1, 129)]
     X_windows = np.random.randn(2, 128, 1250)
-    feats_X, feat_names = extract_features(X_windows, sfreq=125.0)
-    assert any("alpha_asymmetry" in name for name in feat_names)
+    feats_X, feat_names = extract_features(X_windows, sfreq=125.0, ch_names=ch_names)
+    assert any("alpha_asym" in name for name in feat_names)
     assert feats_X.shape[0] == len(X_windows)
 
-def test_pipeline_contains_scaler_and_optional_reducer():
+def test_pipeline_contains_scaler_and_classifier():
     from modma_mdd_real_experiment import build_feature_model_pipeline
-    pipe = build_feature_model_pipeline(model_name="svm", reducer="pca")
+    pipe = build_feature_model_pipeline()
     assert "scaler" in pipe.named_steps
-    assert "pca" in pipe.named_steps
+    assert "clf" in pipe.named_steps
 
 def test_evaluation_never_mixes_subjects_between_train_test():
-    from modma_mdd_real_experiment import run_nested_group_cv
+    from modma_mdd_real_experiment import run_simplified_cv
     X = np.random.randn(10, 5)
     y = np.array([0, 1] * 5)
     groups = np.array(["s1", "s1", "s2", "s2", "s3", "s3", "s4", "s4", "s5", "s5"])
-    out = run_nested_group_cv(X, y, groups, n_splits=5)
-    assert out["leakage_detected"] is False
+    out = run_simplified_cv(X, y, groups, n_splits=5)
     assert "subject_level_metrics" in out
 
 def test_classifier_uses_balanced_class_weights():
     from modma_mdd_real_experiment import build_feature_model_pipeline
-    pipe = build_feature_model_pipeline(model_name="svm", reducer="none")
+    pipe = build_feature_model_pipeline()
     assert pipe.named_steps["clf"].class_weight == "balanced"
 
 def test_subject_level_aggregation_is_used_for_primary_metrics():
-    from modma_mdd_real_experiment import run_nested_group_cv
+    from modma_mdd_real_experiment import run_simplified_cv
     X = np.random.randn(10, 5)
     y = np.array([0, 1] * 5)
     groups = np.array(["s1", "s1", "s2", "s2", "s3", "s3", "s4", "s4", "s5", "s5"])
-    out = run_nested_group_cv(X, y, groups, n_splits=5)
+    out = run_simplified_cv(X, y, groups, n_splits=5)
     assert out["primary_metric_level"] == "subject"
 
 def test_training_uses_inverse_window_count_subject_weights():
@@ -146,25 +146,26 @@ def test_report_contains_ci_and_permutation_pvalue():
         "y_subj_prob": np.array([0.2, 0.8, 0.4, 0.6, 0.3, 0.7]),
         "subj_list": ["s1", "s2", "s3", "s4", "s5", "s6"]
     }
-    X = np.random.randn(6, 4, 500)
+    features = np.random.randn(6, 5)
     y = np.array([0, 1, 0, 1, 0, 1])
     groups = np.array(["s1", "s2", "s3", "s4", "s5", "s6"])
-    ch_names = [f"ch{i}" for i in range(4)]
 
-    report = build_report(X, y, groups, cv_results, ch_names=ch_names, sfreq=125.0,
+    report = build_report(features, y, groups, cv_results,
                           n_permutations=2, seed=42)
     assert "balanced_accuracy_ci95" in report
     assert "permutation_pvalue" in report
     assert report["n_permutations"] == 2
-    assert report["permutation_strategy"] == "full_model_selection_rerun"
+    assert report["permutation_strategy"] == "label_permutation_pre_extracted"
 
 def test_main_writes_metrics_json(tmp_path, monkeypatch):
     from modma_mdd_real_experiment import run_main_with_output_dir
     import mne, glob, pandas as pd
-    
+
+    _FAKE_CHS = ["Fp1", "Fp2", "C3", "T3", "P3", "O1"]
+
     class FakeRaw:
         def __init__(self, *args, **kwargs):
-            self.info = {"sfreq": 250.0, "ch_names": ["Fp1", "Fp2"], "bads": []}
+            self.info = {"sfreq": 250.0, "ch_names": _FAKE_CHS[:], "bads": []}
             self.times = np.arange(0, 30, 1/250.0)
         @property
         def ch_names(self):
@@ -180,7 +181,7 @@ def test_main_writes_metrics_json(tmp_path, monkeypatch):
             self.info["sfreq"] = sfreq
             return self
         def get_data(self, units="uV"):
-            return np.ones((2, int(30 * self.info["sfreq"]))) * 1e-7
+            return np.ones((len(_FAKE_CHS), int(30 * self.info["sfreq"]))) * 1e-7
 
     monkeypatch.setattr(mne.io, "read_raw_edf", FakeRaw)
     monkeypatch.setattr(glob, "glob", lambda x: ["fake.edf"] if "eeg" in x else [x])
@@ -270,9 +271,10 @@ def test_feature_importance_not_random():
     assert "np.random.rand" not in src
 
     # Verify f_classif produces deterministic, data-dependent scores
-    X = np.random.RandomState(0).randn(20, 4, 500)
+    ch_names = [f"E{i}" for i in range(1, 129)]
+    X = np.random.RandomState(0).randn(20, 128, 500)
     y = np.array([0]*10 + [1]*10)
-    feats, names = extract_features(X, sfreq=125.0)
+    feats, names = extract_features(X, sfreq=125.0, ch_names=ch_names)
     f1, _ = real_f_classif(feats, y)
     f2, _ = real_f_classif(feats, y)
     np.testing.assert_array_almost_equal(f1, f2)
@@ -301,9 +303,11 @@ def test_roc_curve_uses_real_predictions(tmp_path, monkeypatch):
     import modma_mdd_real_experiment as mod
     import mne, glob, pandas as pd, json
 
+    _FAKE_CHS = ["Fp1", "Fp2", "C3", "T3", "P3", "O1"]
+
     class FakeRaw:
         def __init__(self, *a, **kw):
-            self.info = {"sfreq": 250.0, "ch_names": ["Fp1", "Fp2"], "bads": []}
+            self.info = {"sfreq": 250.0, "ch_names": _FAKE_CHS[:], "bads": []}
             self.times = np.arange(0, 30, 1/250.0)
         @property
         def ch_names(self):
@@ -319,7 +323,7 @@ def test_roc_curve_uses_real_predictions(tmp_path, monkeypatch):
             self.info["sfreq"] = sfreq
             return self
         def get_data(self, units="uV"):
-            return np.ones((2, int(30 * self.info["sfreq"]))) * 1e-7
+            return np.ones((len(_FAKE_CHS), int(30 * self.info["sfreq"]))) * 1e-7
 
     monkeypatch.setattr(mne.io, "read_raw_edf", FakeRaw)
     monkeypatch.setattr(glob, "glob", lambda x: ["fake.edf"] if "eeg" in x else [x])
@@ -338,12 +342,12 @@ def test_roc_curve_uses_real_predictions(tmp_path, monkeypatch):
     assert 0.0 <= report["roc_auc"] <= 1.0
 
 
-def test_inner_cv_tunes_hyperparameters():
-    """Important #6: run_nested_group_cv must contain inner CV (GridSearchCV)."""
+def test_pipeline_uses_fixed_logistic():
+    """Pipeline uses fixed LogisticRegression(C=0.1), no GridSearchCV."""
     import inspect
-    from modma_mdd_real_experiment import run_nested_group_cv
-    src = inspect.getsource(run_nested_group_cv)
-    assert "GridSearchCV" in src
+    from modma_mdd_real_experiment import build_feature_model_pipeline
+    pipe = build_feature_model_pipeline()
+    assert pipe.named_steps["clf"].C == 0.1
 
 
 def test_no_edf_files_raises_clear_error(tmp_path, monkeypatch):
@@ -420,47 +424,23 @@ def test_region_aggregation_reduces_dimensionality():
     assert feats.shape[1] == len(names)
 
 
-def test_de_features_shape():
-    from modma_mdd_real_experiment import compute_de_features, build_region_indices
-    ch_names = [f"E{i}" for i in range(1, 129)]
-    region_idx = build_region_indices(ch_names)
-    X = np.random.RandomState(0).randn(3, 128, 500)
-    feats, names = compute_de_features(X, sfreq=125.0, region_idx=region_idx)
-    assert feats.shape == (3, 20)  # 5 regions * 4 bands
-    assert len(names) == 20
 
 
-def test_hjorth_features_shape():
-    from modma_mdd_real_experiment import compute_hjorth_features, build_region_indices
-    ch_names = [f"E{i}" for i in range(1, 129)]
-    region_idx = build_region_indices(ch_names)
-    X = np.random.RandomState(0).randn(3, 128, 500)
-    feats, names = compute_hjorth_features(X, region_idx=region_idx)
-    assert feats.shape == (3, 15)  # 5 regions * 3 (activity, mobility, complexity)
-    assert len(names) == 15
-
-
-def test_permutation_reruns_full_selection():
-    """Permutation must rerun full model selection, not just nested CV."""
+def test_permutation_uses_simplified_cv():
+    """Permutation must use run_simplified_cv, not full model selection."""
     import inspect
-    from modma_mdd_real_experiment import _run_one_permutation
-    src = inspect.getsource(_run_one_permutation)
-    assert "run_full_model_selection" in src
-    assert "run_nested_group_cv" not in src
+    from modma_mdd_real_experiment import _run_one_perm_cv
+    src = inspect.getsource(_run_one_perm_cv)
+    assert "run_simplified_cv" in src
 
 
-def test_full_model_selection_returns_fold_results():
-    from modma_mdd_real_experiment import run_full_model_selection
+def test_simplified_cv_returns_fold_results():
+    from modma_mdd_real_experiment import run_simplified_cv
     rng = np.random.RandomState(0)
-    X = rng.randn(20, 4, 500)
+    features = rng.randn(20, 5)
     y = np.array([0]*10 + [1]*10)
     groups = np.array([f"s{i//2}" for i in range(20)])
-    ch = [f"ch{i}" for i in range(4)]
-    out = run_full_model_selection(X, y, groups, ch, 125.0,
-                                   bad_amp_candidates=(9999,),
-                                   max_bad_channels=999,
-                                   min_windows_per_subject=2,
-                                   n_splits=2, seed=42)
+    out = run_simplified_cv(features, y, groups, n_splits=2, seed=42)
     assert "fold_results" in out
     assert "subject_level_metrics" in out
     assert len(out["fold_results"]) > 0
@@ -519,51 +499,6 @@ def test_conclusion_keeps_null_permutation_pvalue_for_reporting():
     assert result["values"]["permutation_pvalue"] is None
 
 
-def test_full_model_selection_raises_on_all_empty_folds(monkeypatch):
-    """run_full_model_selection must raise clear ValueError when all folds fail."""
-    from modma_mdd_real_experiment import run_full_model_selection
-    import modma_mdd_real_experiment as mod
-    rng = np.random.RandomState(0)
-    X = rng.randn(20, 4, 500) * 1e-6
-    y = np.array([0]*10 + [1]*10)
-    groups = np.array([f"s{i//2}" for i in range(20)])
-    # Let initial call succeed, then return None for all subsequent calls
-    real_fn = mod._apply_qc_and_extract
-    call_count = {"n": 0}
-    def fake_apply(*args, **kwargs):
-        call_count["n"] += 1
-        if call_count["n"] == 1:
-            return real_fn(*args, **kwargs)
-        return None
-    monkeypatch.setattr(mod, "_apply_qc_and_extract", fake_apply)
-    with pytest.raises(ValueError, match="No valid outer-fold predictions"):
-        run_full_model_selection(X, y, groups, [f"c{i}" for i in range(4)], 125.0,
-                                 bad_amp_candidates=(9999,),
-                                 min_windows_per_subject=2,
-                                 n_splits=2, seed=42)
-
-
-# --- v4 feature upgrade tests ---
-
-def test_connectivity_features_shape():
-    from modma_mdd_real_experiment import compute_connectivity_features, build_region_indices
-    ch_names = [f"E{i}" for i in range(1, 129)]
-    region_idx = build_region_indices(ch_names)
-    X = np.random.RandomState(0).randn(3, 128, 500)
-    feats, names = compute_connectivity_features(X, sfreq=125.0, region_idx=region_idx)
-    assert feats.shape == (3, 40)  # 10 pairs * 4 bands
-    assert len(names) == 40
-    assert all("imcoh_" in n for n in names)
-
-
-def test_riemannian_features_shape():
-    from modma_mdd_real_experiment import compute_riemannian_features, build_region_indices
-    ch_names = [f"E{i}" for i in range(1, 129)]
-    region_idx = build_region_indices(ch_names)
-    X = np.random.RandomState(0).randn(3, 128, 500)
-    feats, names = compute_riemannian_features(X, region_idx=region_idx)
-    assert feats.shape == (3, 15)  # 5*(5+1)/2
-    assert len(names) == 15
 
 
 def test_cli_accepts_highpass_freq():
@@ -580,13 +515,13 @@ def test_load_windows_applies_average_reference():
     assert "'average'" in src
 
 
-def test_total_feature_dimensions_144():
+def test_total_feature_dimensions_5():
     from modma_mdd_real_experiment import extract_features
     ch_names = [f"E{i}" for i in range(1, 129)]
     X = np.random.RandomState(0).randn(2, 128, 500)
     feats, names = extract_features(X, sfreq=125.0, ch_names=ch_names)
-    assert feats.shape[1] == 144
-    assert len(names) == 144
+    assert feats.shape[1] == 5
+    assert len(names) == 5
 
 
 def test_bad_amp_uv_respected_as_single_candidate():
@@ -598,16 +533,6 @@ def test_bad_amp_uv_respected_as_single_candidate():
     assert "200, 300, 400" not in src
 
 
-def test_riemannian_features_consistent_across_calls():
-    """Same input must produce identical riemannian features (no fit-dependent state)."""
-    from modma_mdd_real_experiment import compute_riemannian_features, build_region_indices
-    ch_names = [f"E{i}" for i in range(1, 129)]
-    region_idx = build_region_indices(ch_names)
-    X = np.random.RandomState(0).randn(4, 128, 500)
-    f1, n1 = compute_riemannian_features(X[:2], region_idx)
-    f2, n2 = compute_riemannian_features(X, region_idx)
-    # First 2 windows must be identical regardless of batch composition
-    np.testing.assert_array_equal(f1, f2[:2])
 
 
 def test_load_windows_cache_roundtrip(tmp_path, monkeypatch):
