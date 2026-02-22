@@ -420,6 +420,83 @@ def _get_model_candidates():
     ]
 
 
+def run_simplified_cv(features, y, groups, n_splits=5, seed=42):
+    """CV on pre-extracted 29-dim features. No re-extraction inside."""
+    cv_outer = StratifiedGroupKFold(n_splits=n_splits)
+    y_true_subject = {}
+    y_pred_subject_probs = {}
+    fold_results = []
+
+    for fold_i, (train_ix, test_ix) in enumerate(cv_outer.split(features, y, groups=groups)):
+        X_tr, y_tr, g_tr = features[train_ix], y[train_ix], groups[train_ix]
+        X_te, y_te, g_te = features[test_ix], y[test_ix], groups[test_ix]
+
+        ug, fi = np.unique(g_tr, return_index=True)
+        gl = y_tr[fi]
+        min_cls = np.min(np.bincount(gl)) if len(np.unique(gl)) > 1 else 0
+
+        best_score, best_pipe, best_name = -1, None, None
+        for model_name, param_grid in _get_model_candidates():
+            pipe = build_feature_model_pipeline(model_name=model_name, reducer="none")
+            if min_cls >= 3:
+                inner_cv = StratifiedGroupKFold(n_splits=min(3, min_cls))
+                grid = GridSearchCV(pipe, param_grid, cv=inner_cv, scoring="balanced_accuracy")
+                try:
+                    grid.fit(X_tr, y_tr, groups=g_tr)
+                    score = grid.best_score_
+                    pipe = grid.best_estimator_
+                except Exception:
+                    continue
+            else:
+                try:
+                    sw = compute_subject_balanced_sample_weights(g_tr)
+                    pipe.fit(X_tr, y_tr, clf__sample_weight=sw)
+                    score = 0.5
+                except Exception:
+                    continue
+            if score > best_score:
+                best_score, best_pipe, best_name = score, pipe, model_name
+
+        if best_pipe is None:
+            continue
+
+        # Retrain best on full train fold
+        sw = compute_subject_balanced_sample_weights(g_tr)
+        best_pipe.fit(X_tr, y_tr, clf__sample_weight=sw)
+        preds = best_pipe.predict_proba(X_te)[:, 1]
+
+        for i, g in enumerate(g_te):
+            if g not in y_true_subject:
+                y_true_subject[g] = y_te[i]
+                y_pred_subject_probs[g] = []
+            y_pred_subject_probs[g].append(preds[i])
+
+        fold_results.append({
+            "fold": fold_i, "model": best_name, "inner_score": best_score,
+        })
+
+    if not y_true_subject:
+        raise ValueError("No valid predictions from simplified CV")
+
+    subj_list = list(y_true_subject.keys())
+    y_subj_true = np.array([y_true_subject[g] for g in subj_list])
+    y_subj_prob = np.array([np.mean(y_pred_subject_probs[g]) for g in subj_list])
+    y_subj_pred = (y_subj_prob >= 0.5).astype(int)
+
+    return {
+        "primary_metric_level": "subject",
+        "subject_level_metrics": {
+            "balanced_accuracy": balanced_accuracy_score(y_subj_true, y_subj_pred),
+            "roc_auc": roc_auc_score(y_subj_true, y_subj_prob) if len(np.unique(y_subj_true)) > 1 else 0.5,
+            "f1": f1_score(y_subj_true, y_subj_pred, zero_division=0),
+        },
+        "y_subj_true": y_subj_true,
+        "y_subj_prob": y_subj_prob,
+        "subj_list": subj_list,
+        "fold_results": fold_results,
+    }
+
+
 def get_ci_bootstrap(y_true, y_pred, metric_fn, n_bootstraps=1000, seed=42):
     rng = np.random.RandomState(seed)
     scores = []
