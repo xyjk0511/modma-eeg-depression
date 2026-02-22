@@ -11,7 +11,7 @@ This project fixes the QC bottleneck that drops 80% of subjects (11/53 retained)
 - [x] **Phase 3: Feature Reduction & Pipeline Optimization** - Reduce features from 139→29 dims, simplify pipeline, accelerate permutation test
 - [x] **Phase 4: Statistical Validation** - BA=0.613 (>0.60) but p=0.135 — negative conclusion
 - [x] **Phase 5: Confirmatory Replication** - Pre-register locked pipeline, train on MODMA, test on TDBRAIN → negative (BA=0.500)
-- [ ] **Phase 6: Literature-Informed Feature Expansion** - Expand from 5→15 dims based on literature (beta power, PLV connectivity, temporal/central regions), validate internally then cross-dataset
+- [x] **Phase 6: Literature-Informed Feature Expansion** - Expand from 5→15 dims based on literature (beta power, PLV connectivity, temporal/central regions), validate internally then cross-dataset
 
 ## Phase Details
 
@@ -102,7 +102,7 @@ Plans:
 
 Plans:
 - [x] 06-01-PLAN.md — 15-dim feature expansion + MODMA internal 5-dim vs 15-dim validation
-- [ ] 06-02-PLAN.md — Cross-dataset replication on TDBRAIN with 15-dim features
+- [x] 06-02-PLAN.md — Cross-dataset replication on TDBRAIN with 15-dim features → negative (BA=0.500, p=1.0)
 
 ## Progress
 
@@ -113,4 +113,4 @@ Plans:
 | 3. Feature & Permutation Optimization | 2/2 | Complete | 2026-02-22 |
 | 4. Statistical Validation | 1/1 | Complete (negative) | 2026-02-22 |
 | 5. Confirmatory Replication | 2/2 | Complete (negative: BA=0.500) | 2026-02-22 |
-| 6. Feature Expansion | 1/2 | In Progress | — |
+| 6. Feature Expansion | 2/2 | Complete (negative: BA=0.500) | 2026-02-22 |

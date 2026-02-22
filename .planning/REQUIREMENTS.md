@@ -36,5 +36,5 @@
 
 - [x] **REP-01**: Pre-registration document committed and git-tagged before any external data touches classifier
 - [x] **REP-02**: External data adapter loads TDBRAIN BDF files, maps 10-20 channels to regions, applies locked preprocessing
-- [ ] **REP-03**: Train on full MODMA (43 subjects), test on external dataset with frozen model (no re-tuning)
-- [ ] **REP-04**: Complete report with BA, CI, p-value, and conclusion (positive or negative)
+- [x] **REP-03**: Train on full MODMA (43 subjects), test on external dataset with frozen model (no re-tuning)
+- [x] **REP-04**: Complete report with BA, CI, p-value, and conclusion (positive or negative)

@@ -9,18 +9,18 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 
 ## Current Position
 
-Phase: 6 of 6 (Literature-Informed Feature Expansion) -- Plan 1/2 COMPLETE
-Status: 15-dim features implemented; internal MODMA CV done (5-dim BA=0.613 vs 15-dim BA=0.500)
-Last activity: 2026-02-22 — Plan 06-01 executed (feature expansion + internal validation)
+Phase: 6 of 6 (Literature-Informed Feature Expansion) -- Plan 2/2 COMPLETE
+Status: ALL PHASES COMPLETE. 15-dim cross-dataset BA=0.500, p=1.0 — negative (same as Phase 5 baseline)
+Last activity: 2026-02-22 — Plan 06-02 executed (15-dim cross-dataset replication)
 
-Progress: [█████████░] 95%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 7
-- Average duration: 5.4 min
-- Total execution time: 0.63 hours
+- Total plans completed: 8
+- Average duration: 5.1 min
+- Total execution time: 0.68 hours
 
 **By Phase:**
 
@@ -29,7 +29,7 @@ Progress: [█████████░] 95%
 | 1-QC Repair | 2/2 | 17 min | 8.5 min |
 | 3-Feature Opt | 2/2 | 10 min | 5 min |
 | 5-Replication | 2/2 | 6 min | 3 min |
-| 6-Feature Expansion | 1/2 | 5 min | 5 min |
+| 6-Feature Expansion | 2/2 | 8 min | 4 min |
 
 ## Accumulated Context
 
@@ -71,9 +71,13 @@ Recent decisions affecting current work:
 - 06-01: Coherence via scipy.signal.coherence on region-averaged signals
 - 06-01: L1 penalty with saga solver for 15-dim model
 
+- 06-02: 15-dim L1 cross-dataset BA=0.500, p=1.0 — same as Phase 5 5-dim baseline
+- 06-02: Feature expansion does not improve cross-dataset generalization
+- 06-02: TDBRAIN: 356 subjects (312 MDD, 47 HC), 1780 windows, 15 features
+
 ### Pending Todos
 
-Plan 06-02: Cross-dataset replication on TDBRAIN with 15-dim features.
+None — all phases complete.
 
 ### Blockers/Concerns
 
@@ -82,6 +86,6 @@ Plan 06-02: Cross-dataset replication on TDBRAIN with 15-dim features.
 
 ## Session Continuity
 
-Last session: 2026-02-22 12:29
-Stopped at: Completed 06-01-PLAN.md (15-dim feature expansion + internal validation)
-Resume file: .planning/phases/06-literature-informed-feature-expansion/06-02-PLAN.md
+Last session: 2026-02-22 12:35
+Stopped at: Completed 06-02-PLAN.md (15-dim cross-dataset replication — ALL PHASES DONE)
+Resume file: N/A — project complete
