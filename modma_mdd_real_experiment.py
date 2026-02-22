@@ -97,7 +97,6 @@ def parse_args(argv=None):
     parser.add_argument("--window-sec", type=float, default=10.0, help="Window size in seconds")
     parser.add_argument("--output-dir", type=str, default="results", help="Output directory")
     parser.add_argument("--bad-amp-uv", type=float, default=200.0, help="Amplitude threshold in uV")
-    parser.add_argument("--max-bad-channels", type=int, default=3, help="Max bad channels per window")
     parser.add_argument("--highpass-freq", type=float, default=1.0, help="High-pass filter frequency in Hz")
     parser.add_argument("--n-jobs", type=int, default=4, help="Parallel jobs for permutation test")
 
@@ -242,7 +241,7 @@ def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_du
             window_size = int(window_sec * raw.info['sfreq'])
 
             # Skip Window 0 (filter transient); per-window QC with dynamic threshold
-            max_bad_win = int(n_channels * 0.12)
+            max_bad_win = max(1, int(n_channels * 0.12))
             for s in range(window_size, data.shape[1] - window_size + 1, window_size):
                 segment = data[:, s:s + window_size]
                 bad_ch_count = np.sum(np.any(np.abs(segment) > thr_v, axis=1))
@@ -852,7 +851,7 @@ def determine_conclusion(report, subject_labels):
     }
 
 
-def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq, n_permutations, seed, min_windows_per_subject, window_sec, crop_duration, bad_amp_uv=200.0, max_bad_channels=3, highpass_freq=0.5, n_jobs=4):
+def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq, n_permutations, seed, min_windows_per_subject, window_sec, crop_duration, bad_amp_uv=200.0, highpass_freq=0.5, n_jobs=4):
     os.makedirs(output_dir, exist_ok=True)
     participants_path = os.path.join(bids_root, "participants.tsv")
 
@@ -881,7 +880,7 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
 
     # Dynamic max_bad_channels: 12% of channel count
     n_channels = X_windows.shape[1]
-    dynamic_max_bad = int(n_channels * 0.12)
+    dynamic_max_bad = max(1, int(n_channels * 0.12))
     logger.info(f"Dynamic max_bad_channels: {dynamic_max_bad} (12% of {n_channels})")
 
     bad_amp_candidates = (bad_amp_uv,)
@@ -1007,7 +1006,6 @@ if __name__ == "__main__":
             window_sec=args.window_sec,
             crop_duration=args.crop_duration,
             bad_amp_uv=args.bad_amp_uv,
-            max_bad_channels=args.max_bad_channels,
             highpass_freq=args.highpass_freq,
             n_jobs=args.n_jobs,
         )

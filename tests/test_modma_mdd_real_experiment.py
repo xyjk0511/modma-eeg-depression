@@ -57,8 +57,11 @@ def test_window_extraction_returns_labels_and_groups(monkeypatch):
     
     class FakeRaw:
         def __init__(self, *args, **kwargs):
-            self.info = {"sfreq": 250.0, "ch_names": ["Fp1", "Fp2"]}
+            self.info = {"sfreq": 250.0, "ch_names": ["Fp1", "Fp2"], "bads": []}
             self.times = np.arange(0, 30, 1/250.0)
+        @property
+        def ch_names(self):
+            return self.info["ch_names"]
         def load_data(self):
             return self
         def copy(self):
@@ -69,20 +72,24 @@ def test_window_extraction_returns_labels_and_groups(monkeypatch):
             return self
         def set_eeg_reference(self, *args, **kwargs):
             return self
+        def set_montage(self, *args, **kwargs):
+            return self
+        def interpolate_bads(self, *args, **kwargs):
+            return self
         def resample(self, sfreq, *args, **kwargs):
             self.info["sfreq"] = sfreq
             return self
         def get_data(self, units="uV"):
-            return np.ones((2, int(30 * self.info["sfreq"])))
+            return np.ones((2, int(30 * self.info["sfreq"]))) * 1e-7
 
     monkeypatch.setattr(mne.io, "read_raw_edf", FakeRaw)
     import glob
     monkeypatch.setattr(glob, "glob", lambda x: ["fake.edf"])
-    
+
     participants_df = pd.DataFrame(
         {"participant_id": ["sub-001", "sub-025"], "group": ["MDD", "HC"]}
     )
-    X, y, groups, no_edf, ch_names = load_windows(participants_df, bids_root="D:/fake", window_sec=10, resample_sfreq=125.0)
+    X, y, groups, no_edf, ch_names, _interp_info = load_windows(participants_df, bids_root="D:/fake", window_sec=10, resample_sfreq=125.0)
     assert len(X) == len(y) == len(groups)
     assert len(set(groups)) > 1
 
@@ -157,18 +164,23 @@ def test_main_writes_metrics_json(tmp_path, monkeypatch):
     
     class FakeRaw:
         def __init__(self, *args, **kwargs):
-            self.info = {"sfreq": 250.0, "ch_names": ["Fp1", "Fp2"]}
+            self.info = {"sfreq": 250.0, "ch_names": ["Fp1", "Fp2"], "bads": []}
             self.times = np.arange(0, 30, 1/250.0)
+        @property
+        def ch_names(self):
+            return self.info["ch_names"]
         def load_data(self): return self
         def copy(self): return self
         def crop(self, *args, **kwargs): return self
         def filter(self, *args, **kwargs): return self
         def set_eeg_reference(self, *args, **kwargs): return self
+        def set_montage(self, *args, **kwargs): return self
+        def interpolate_bads(self, *args, **kwargs): return self
         def resample(self, sfreq, *args, **kwargs):
             self.info["sfreq"] = sfreq
             return self
         def get_data(self, units="uV"):
-            return np.ones((2, int(30 * self.info["sfreq"])))
+            return np.ones((2, int(30 * self.info["sfreq"]))) * 1e-7
 
     monkeypatch.setattr(mne.io, "read_raw_edf", FakeRaw)
     monkeypatch.setattr(glob, "glob", lambda x: ["fake.edf"] if "eeg" in x else [x])
@@ -291,18 +303,23 @@ def test_roc_curve_uses_real_predictions(tmp_path, monkeypatch):
 
     class FakeRaw:
         def __init__(self, *a, **kw):
-            self.info = {"sfreq": 250.0, "ch_names": ["Fp1", "Fp2"]}
+            self.info = {"sfreq": 250.0, "ch_names": ["Fp1", "Fp2"], "bads": []}
             self.times = np.arange(0, 30, 1/250.0)
+        @property
+        def ch_names(self):
+            return self.info["ch_names"]
         def load_data(self): return self
         def copy(self): return self
         def crop(self, *a, **kw): return self
         def filter(self, *a, **kw): return self
         def set_eeg_reference(self, *a, **kw): return self
+        def set_montage(self, *a, **kw): return self
+        def interpolate_bads(self, *a, **kw): return self
         def resample(self, sfreq, *a, **kw):
             self.info["sfreq"] = sfreq
             return self
         def get_data(self, units="uV"):
-            return np.ones((2, int(30 * self.info["sfreq"])))
+            return np.ones((2, int(30 * self.info["sfreq"]))) * 1e-7
 
     monkeypatch.setattr(mne.io, "read_raw_edf", FakeRaw)
     monkeypatch.setattr(glob, "glob", lambda x: ["fake.edf"] if "eeg" in x else [x])
@@ -364,19 +381,18 @@ def test_qc_report_has_detailed_drop_reasons():
     # s1: 3 windows, all kept; s2: 3 windows, none kept; s3: 1 window, kept but < min
     keep_mask = np.array([True, True, True, False, False, False, True])
     no_edf = [("s4", "HC")]
-    report = generate_qc_report(participants_df, groups, keep_mask, no_edf, min_windows_per_subject=3)
+    report, _retention_stats = generate_qc_report(participants_df, groups, keep_mask, no_edf, min_windows_per_subject=3)
     reasons = dict(zip(report["subject"], report["drop_reason"]))
     assert reasons["s4"] == "no_edf"
     assert reasons["s2"] == "dropped_by_amp"
     assert reasons["s3"] == "dropped_by_min_windows"
     assert reasons["s1"] == "kept"
-    assert set(report.columns) == {"subject", "label", "raw_windows", "kept_windows", "drop_reason"}
+    assert set(report.columns) == {"subject", "label", "raw_windows", "kept_windows", "drop_reason", "n_interpolated"}
 
 
-def test_cli_accepts_bad_amp_uv_and_max_bad_channels():
-    args = parse_args(["--bids-root", "fake", "--bad-amp-uv", "300", "--max-bad-channels", "5"])
+def test_cli_accepts_bad_amp_uv():
+    args = parse_args(["--bids-root", "fake", "--bad-amp-uv", "300"])
     assert args.bad_amp_uv == 300.0
-    assert args.max_bad_channels == 5
 
 
 def test_region_mapping_invariant_to_channel_order():
