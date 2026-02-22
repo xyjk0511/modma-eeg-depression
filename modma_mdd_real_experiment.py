@@ -11,7 +11,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import mne
-from scipy.signal import welch
+from scipy.signal import welch, hilbert as sig_hilbert, sosfilt, butter, coherence as sig_coherence
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.feature_selection import f_classif
@@ -301,8 +301,35 @@ def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_du
 
     return result
 
+def _compute_plv(X, region_idx, sfreq, region_a, region_b, fmin, fmax):
+    """Phase locking value between two regions in a frequency band."""
+    sig_a = np.mean(X[:, region_idx[region_a], :], axis=1)
+    sig_b = np.mean(X[:, region_idx[region_b], :], axis=1)
+    sos = butter(4, [fmin, fmax], btype='band', fs=sfreq, output='sos')
+    fa = sosfilt(sos, sig_a, axis=1)
+    fb = sosfilt(sos, sig_b, axis=1)
+    pa = np.angle(sig_hilbert(fa, axis=1))
+    pb = np.angle(sig_hilbert(fb, axis=1))
+    plv = np.abs(np.mean(np.exp(1j * (pa - pb)), axis=1))
+    return plv[:, np.newaxis]
+
+
+def _compute_coherence(X, region_idx, sfreq, region_a, region_b, fmin, fmax):
+    """Mean coherence between two regions in a frequency band."""
+    sig_a = np.mean(X[:, region_idx[region_a], :], axis=1)
+    sig_b = np.mean(X[:, region_idx[region_b], :], axis=1)
+    n_win = X.shape[0]
+    nperseg = min(X.shape[2], int(sfreq * 2))
+    result = np.zeros(n_win)
+    for i in range(n_win):
+        freqs_c, cxy = sig_coherence(sig_a[i], sig_b[i], fs=sfreq, nperseg=nperseg)
+        band_mask = (freqs_c >= fmin) & (freqs_c <= fmax)
+        result[i] = np.mean(cxy[band_mask]) if band_mask.any() else 0.0
+    return result[:, np.newaxis]
+
+
 def extract_features(X, sfreq, ch_names=None):
-    """Extract 5-dim features: frontal_theta_rel, frontal_alpha_rel, alpha_asym, frontal_TBR, riem_ct."""
+    """Extract 15-dim features: 5 existing + 4 beta + 3 connectivity + 3 temporal/central."""
     n_win, n_ch, n_times = X.shape
     if ch_names is None:
         ch_names = [f"ch{i}" for i in range(n_ch)]
@@ -312,31 +339,33 @@ def extract_features(X, sfreq, ch_names=None):
     freqs, psd = welch(X, fs=sfreq, axis=2, nperseg=nperseg)
     total_power = np.sum(psd, axis=2)
     pidx = region_idx["parietal"]
+    tidx = region_idx["temporal"]
+    fidx = region_idx["frontal"]
 
     def _band_rel(region_indices, fmin, fmax):
+        if not region_indices:
+            return np.zeros((n_win, 1))
         mask = (freqs >= fmin) & (freqs <= fmax)
         bp = np.mean(np.mean(psd[:, region_indices][:, :, mask], axis=2), axis=1)
         tp = np.mean(total_power[:, region_indices], axis=1)
         return (bp / (tp + 1e-10))[:, np.newaxis]
 
+    # --- Original 5 features ---
     features = [
         _band_rel(pidx, 4, 8),   # parietal theta rel
         _band_rel(pidx, 8, 13),  # parietal alpha rel
     ]
 
-    # Alpha asymmetry frontal
     alpha_mask = (freqs >= 8) & (freqs <= 13)
     alpha_power = np.mean(psd[:, :, alpha_mask], axis=2)
     features.append(_alpha_asymmetry(alpha_power, ch_names, n_win, "frontal"))
 
-    # Parietal Theta/Beta ratio
     theta_mask = (freqs >= 4) & (freqs <= 8)
     beta_mask = (freqs >= 13) & (freqs <= 30)
     theta_p = np.mean(np.mean(psd[:, pidx][:, :, theta_mask], axis=2), axis=1, keepdims=True)
     beta_p = np.mean(np.mean(psd[:, pidx][:, :, beta_mask], axis=2), axis=1, keepdims=True)
     features.append(theta_p / (beta_p + 1e-10))
 
-    # Riemannian central-temporal
     ct = ["central", "temporal"]
     sigs = [np.mean(X[:, region_idx[r], :], axis=1) if region_idx[r]
             else np.zeros((n_win, n_times)) for r in ct]
@@ -345,8 +374,45 @@ def extract_features(X, sfreq, ch_names=None):
     covs += 1e-6 * np.eye(2)[np.newaxis]
     features.append(np.log(np.abs(covs[:, 0, 1:2]) + 1e-10))
 
-    names = ["parietal_theta_rel", "parietal_alpha_rel", "alpha_asym_frontal",
-             "parietal_TBR", "riem_central_temporal"]
+    # --- A. Beta power (4 features) ---
+    features.append(_band_rel(tidx, 16, 24))   # temporal_beta2_rel
+    features.append(_band_rel(fidx, 16, 24))   # frontal_beta2_rel
+    features.append(_band_rel(tidx, 24, 40))   # temporal_beta3_rel
+    beta2_mask = (freqs >= 16) & (freqs <= 24)
+    beta2_power = np.mean(psd[:, :, beta2_mask], axis=2)
+    features.append(_alpha_asymmetry(beta2_power, ch_names, n_win, "temporal"))  # beta_asym_temporal
+
+    # --- B. Connectivity (3 features) ---
+    has_frontal = len(region_idx["frontal"]) > 0
+    has_parietal = len(pidx) > 0
+    has_temporal = len(tidx) > 0
+    has_central = len(region_idx["central"]) > 0
+
+    if has_frontal and has_parietal:
+        features.append(_compute_plv(X, region_idx, sfreq, "frontal", "parietal", 8, 13))
+    else:
+        features.append(np.zeros((n_win, 1)))
+    if has_frontal and has_temporal:
+        features.append(_compute_plv(X, region_idx, sfreq, "frontal", "temporal", 4, 8))
+    else:
+        features.append(np.zeros((n_win, 1)))
+    if has_central and has_temporal:
+        features.append(_compute_coherence(X, region_idx, sfreq, "central", "temporal", 13, 30))
+    else:
+        features.append(np.zeros((n_win, 1)))
+
+    # --- C. Temporal/central (3 features) ---
+    features.append(_band_rel(tidx, 4, 8))    # temporal_theta_rel
+    features.append(_band_rel(tidx, 8, 13))   # temporal_alpha_rel
+    features.append(_alpha_asymmetry(alpha_power, ch_names, n_win, "temporal"))  # alpha_asym_temporal
+
+    names = [
+        "parietal_theta_rel", "parietal_alpha_rel", "alpha_asym_frontal",
+        "parietal_TBR", "riem_central_temporal",
+        "temporal_beta2_rel", "frontal_beta2_rel", "temporal_beta3_rel", "beta_asym_temporal",
+        "plv_frontal_parietal_alpha", "plv_frontal_temporal_theta", "coh_central_temporal_beta",
+        "temporal_theta_rel", "temporal_alpha_rel", "alpha_asym_temporal",
+    ]
     return np.column_stack(features), names
 
 
@@ -371,11 +437,13 @@ def _alpha_asymmetry(alpha_power, ch_names, n_win, region="frontal"):
     np.divide(r_alpha - l_alpha, denom, out=result, where=denom != 0)
     return result[:, np.newaxis]
 
-def build_feature_model_pipeline():
-    """Scaler + Logistic C=0.1 (fixed, no tuning)."""
+def build_feature_model_pipeline(use_l1=False):
+    """Scaler + Logistic C=0.1 (fixed, no tuning). L1/saga when use_l1=True."""
+    penalty, solver = ("l1", "saga") if use_l1 else ("l2", "lbfgs")
     return Pipeline([
         ("scaler", StandardScaler()),
         ("clf", LogisticRegression(C=0.1, class_weight="balanced",
+                                   penalty=penalty, solver=solver,
                                    max_iter=1000, random_state=42)),
     ])
 

@@ -308,8 +308,8 @@ if __name__ == "__main__":
     # Test extract_features
     features, names = extract_features(X, sfreq=sfreq, ch_names=ch_names)
     assert features.shape[0] == len(y), f"Feature rows {features.shape[0]} != labels {len(y)}"
-    assert features.shape[1] == 5, f"Expected 5 features, got {features.shape[1]}"
-    assert len(names) == 5, f"Expected 5 feature names, got {len(names)}"
+    assert features.shape[1] == 15, f"Expected 15 features, got {features.shape[1]}"
+    assert len(names) == 15, f"Expected 15 feature names, got {len(names)}"
 
     # Test build_region_indices with 10-20 channels
     regions = build_region_indices(ch_names)
