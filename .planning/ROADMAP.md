@@ -7,8 +7,8 @@ This project fixes the QC bottleneck that drops 80% of subjects (11/53 retained)
 ## Phases
 
 - [x] **Phase 1: QC Repair** - Fix QC parameters and filtering to retain 35+ subjects with balanced MDD/HC groups
-- [ ] **Phase 2: Preprocessing Upgrade** - Integrate pyprep for robust bad channel detection and .npz caching for fast iteration
-- [ ] **Phase 3: Feature & Permutation Optimization** - Add Theta/Beta ratio feature and optimize permutation test to extract features once
+- [x] **Phase 2: Preprocessing Upgrade** - .npz caching for fast iteration (pyprep deferred — current interpolation retains 43 subjects)
+- [ ] **Phase 3: Feature Reduction & Pipeline Optimization** - Reduce features from 139→29 dims, simplify pipeline, accelerate permutation test
 - [ ] **Phase 4: Statistical Validation** - Achieve BA>0.60 with permutation p<0.05
 
 ## Phase Details
@@ -43,14 +43,16 @@ Plans:
 - [ ] 02-01: TBD
 - [ ] 02-02: TBD
 
-### Phase 3: Feature & Permutation Optimization
-**Goal**: Feature set includes Theta/Beta ratio and permutation test runs efficiently on pre-extracted features
+### Phase 3: Feature Reduction & Pipeline Optimization
+**Goal**: Reduce feature dimensionality from 139→29, simplify pipeline, achieve BA >= 0.5
 **Depends on**: Phase 2
 **Requirements**: FEAT-01, ARCH-02
 **Success Criteria** (what must be TRUE):
-  1. Theta/Beta ratio features are computed per region and included in the feature matrix
-  2. Permutation test extracts features once and permutes labels 1000 times on the saved feature matrix
-  3. Permutation test wall-clock time is reduced by >= 50% compared to current implementation
+  1. Feature set reduced to ~29 dims: PSD-rel(20) + Alpha-asym(2) + Theta/Beta-ratio(5) + Riemannian-top2(2)
+  2. Pipeline simplified: fixed QC 200μV, SVM+Logistic only, no inner QC search
+  3. Permutation test extracts features once and permutes labels 1000 times
+  4. Permutation wall-clock reduced >= 50% vs baseline
+  5. Cross-validated BA >= 0.5 (above chance)
 **Plans**: TBD
 
 Plans:
@@ -75,6 +77,6 @@ Plans:
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
 | 1. QC Repair | 2/2 | Complete | 2026-02-22 |
-| 2. Preprocessing Upgrade | 0/? | Not started | - |
+| 2. Preprocessing Upgrade | 1/1 | Complete (pyprep deferred) | 2026-02-22 |
 | 3. Feature & Permutation Optimization | 0/? | Not started | - |
 | 4. Statistical Validation | 0/? | Not started | - |
