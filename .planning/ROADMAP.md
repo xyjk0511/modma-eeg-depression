@@ -10,7 +10,7 @@ This project fixes the QC bottleneck that drops 80% of subjects (11/53 retained)
 - [x] **Phase 2: Preprocessing Upgrade** - .npz caching for fast iteration (pyprep deferred — current interpolation retains 43 subjects)
 - [x] **Phase 3: Feature Reduction & Pipeline Optimization** - Reduce features from 139→29 dims, simplify pipeline, accelerate permutation test
 - [x] **Phase 4: Statistical Validation** - BA=0.613 (>0.60) but p=0.135 — negative conclusion
-- [ ] **Phase 5: Confirmatory Replication** - Pre-register locked pipeline, train on MODMA, test on external dataset (TDBRAIN)
+- [x] **Phase 5: Confirmatory Replication** - Pre-register locked pipeline, train on MODMA, test on TDBRAIN → negative (BA=0.500)
 
 ## Phase Details
 
@@ -86,7 +86,7 @@ Plans:
 
 Plans:
 - [x] 05-01-PLAN.md — Pre-registration document + external data adapter + git tag
-- [ ] 05-02-PLAN.md — Replication runner script + execution + report
+- [x] 05-02-PLAN.md — Replication runner + TDBRAIN test → negative (BA=0.500, p=1.0)
 
 ## Progress
 
@@ -96,4 +96,4 @@ Plans:
 | 2. Preprocessing Upgrade | 1/1 | Complete (pyprep deferred) | 2026-02-22 |
 | 3. Feature & Permutation Optimization | 2/2 | Complete | 2026-02-22 |
 | 4. Statistical Validation | 1/1 | Complete (negative) | 2026-02-22 |
-| 5. Confirmatory Replication | 1/2 | In progress | — |
+| 5. Confirmatory Replication | 2/2 | Complete (negative: BA=0.500) | 2026-02-22 |

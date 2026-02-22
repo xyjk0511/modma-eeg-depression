@@ -5,22 +5,22 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Fix QC parameters to retain enough subjects for MDD vs HC classification
-**Current focus:** Phase 5: Confirmatory replication with pre-registered pipeline
+**Current focus:** All phases complete — project concluded with negative replication result
 
 ## Current Position
 
-Phase: 5 of 5 (Confirmatory Replication) -- IN PROGRESS
-Status: Plan 05-02 Task 1 complete, paused at Task 2 checkpoint (human-verify)
-Last activity: 2026-02-22 — Plan 05-02 Task 1 committed (replication runner)
+Phase: 5 of 5 (Confirmatory Replication) -- COMPLETE
+Status: All plans executed. Cross-dataset replication negative (BA=0.500, p=1.0).
+Last activity: 2026-02-22 — Phase 5 replication complete, results committed
 
-Progress: [█████████░] 90%
+Progress: [██████████] 100%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 5
-- Average duration: 6.0 min
-- Total execution time: 0.50 hours
+- Total plans completed: 6
+- Average duration: 5.5 min
+- Total execution time: 0.55 hours
 
 **By Phase:**
 
@@ -28,7 +28,7 @@ Progress: [█████████░] 90%
 |-------|-------|-------|----------|
 | 1-QC Repair | 2/2 | 17 min | 8.5 min |
 | 3-Feature Opt | 2/2 | 10 min | 5 min |
-| 5-Replication | 1/2 | 3 min | 3 min |
+| 5-Replication | 2/2 | 6 min | 3 min |
 
 ## Accumulated Context
 
@@ -61,9 +61,13 @@ Recent decisions affecting current work:
 - 05-01: Spectrum sanity check runs on first subject only (diagnostic, not gate)
 - 05-01: 10-20 channel filtering uses STANDARD_1020_REGION_MAP from existing pipeline
 
+- 05-02: Cross-dataset replication on TDBRAIN: BA=0.500, p=1.0 — definitive negative
+- 05-02: TDBRAIN uses BrainVision format (.vhdr), not BDF; adapter updated accordingly
+- 05-02: 356 TDBRAIN subjects loaded (320 MDD + 47 HC - 11 no EEG), 1820 windows
+
 ### Pending Todos
 
-- 05-02 Task 2 checkpoint: human downloads TDBRAIN, runs replication, Claude verifies output
+None — all phases complete.
 
 ### Blockers/Concerns
 
@@ -72,6 +76,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-02-22 10:22
-Stopped at: 05-02 Task 1 committed, paused at Task 2 checkpoint (human-verify: download TDBRAIN)
-Resume file: .planning/phases/05-confirmatory-replication-with-pre-registered-pipeline/05-02-PLAN.md
+Last session: 2026-02-22 11:18
+Stopped at: All phases complete. Project concluded with negative replication result.
+Resume file: N/A — project complete
