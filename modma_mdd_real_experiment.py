@@ -15,9 +15,8 @@ from scipy.signal import welch
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.feature_selection import f_classif
-from sklearn.svm import SVC
 from sklearn.linear_model import LogisticRegression
-from sklearn.model_selection import StratifiedGroupKFold, GridSearchCV
+from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.metrics import roc_auc_score, f1_score, balanced_accuracy_score, confusion_matrix, roc_curve
 import time
 from joblib import Parallel, delayed
@@ -303,75 +302,52 @@ def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_du
     return result
 
 def extract_features(X, sfreq, ch_names=None):
-    """Extract 29-dim features: 20 PSD-rel + 2 alpha-asym + 5 TBR + 2 riem."""
+    """Extract 5-dim features: frontal_theta_rel, frontal_alpha_rel, alpha_asym, frontal_TBR, riem_ct."""
     n_win, n_ch, n_times = X.shape
-    features = []
-    feature_names = []
-
     if ch_names is None:
         ch_names = [f"ch{i}" for i in range(n_ch)]
     region_idx = build_region_indices(ch_names)
 
-    # Per-channel PSD
     nperseg = min(n_times, int(sfreq * 2))
     freqs, psd = welch(X, fs=sfreq, axis=2, nperseg=nperseg)
-    bands = {"delta": (1, 4), "theta": (4, 8), "alpha": (8, 13), "beta": (13, 30)}
-
-    band_power = {}
-    for band_name, (fmin, fmax) in bands.items():
-        mask = (freqs >= fmin) & (freqs <= fmax)
-        band_power[band_name] = np.mean(psd[:, :, mask], axis=2)
     total_power = np.sum(psd, axis=2)
+    fidx = region_idx["frontal"]
 
-    # 1) PSD relative power per region per band (5 regions x 4 bands = 20 dims)
-    for region in REGIONS:
-        idx = region_idx[region]
-        if not idx:
-            features.append(np.zeros((n_win, len(bands))))
-            for b in bands:
-                feature_names.append(f"{region}_{b}_rel")
-            continue
-        for b in bands:
-            bp = np.mean(band_power[b][:, idx], axis=1, keepdims=True)
-            tp = np.mean(total_power[:, idx], axis=1, keepdims=True)
-            features.append(bp / (tp + 1e-10))
-            feature_names.append(f"{region}_{b}_rel")
+    def _band_rel(region_indices, fmin, fmax):
+        mask = (freqs >= fmin) & (freqs <= fmax)
+        bp = np.mean(np.mean(psd[:, region_indices][:, :, mask], axis=2), axis=1)
+        tp = np.mean(total_power[:, region_indices], axis=1)
+        return (bp / (tp + 1e-10))[:, np.newaxis]
 
-    # 2) Alpha asymmetry frontal + temporal (2 dims)
-    features.append(_alpha_asymmetry(band_power["alpha"], ch_names, n_win, "frontal"))
-    feature_names.append("alpha_asymmetry_frontal")
-    features.append(_alpha_asymmetry(band_power["alpha"], ch_names, n_win, "temporal"))
-    feature_names.append("alpha_asymmetry_temporal")
+    features = [
+        _band_rel(fidx, 4, 8),   # frontal theta rel
+        _band_rel(fidx, 8, 13),  # frontal alpha rel
+    ]
 
-    # 3) Theta/Beta ratio per region (5 dims)
-    for region in REGIONS:
-        idx = region_idx[region]
-        if not idx:
-            features.append(np.zeros((n_win, 1)))
-        else:
-            theta = np.mean(band_power["theta"][:, idx], axis=1, keepdims=True)
-            beta = np.mean(band_power["beta"][:, idx], axis=1, keepdims=True)
-            features.append(theta / (beta + 1e-10))
-        feature_names.append(f"{region}_theta_beta_ratio")
+    # Alpha asymmetry frontal
+    alpha_mask = (freqs >= 8) & (freqs <= 13)
+    alpha_power = np.mean(psd[:, :, alpha_mask], axis=2)
+    features.append(_alpha_asymmetry(alpha_power, ch_names, n_win, "frontal"))
 
-    # 4) Riemannian top-2: central-temporal, central-parietal (2 dims)
-    riem_regions = ["central", "temporal", "parietal"]
-    region_signals = []
-    for r in riem_regions:
-        idx = region_idx[r]
-        region_signals.append(
-            np.mean(X[:, idx, :], axis=1) if idx else np.zeros((n_win, n_times))
-        )
-    region_signals = np.stack(region_signals, axis=1)  # (n_win, 3, n_times)
-    covs = np.array([np.cov(region_signals[i]) for i in range(n_win)])
-    covs += 1e-6 * np.eye(3)[np.newaxis]
-    log_covs = np.log(np.abs(covs) + 1e-10)
-    features.append(log_covs[:, 0, 1:2])  # central-temporal
-    feature_names.append("riem_central_temporal")
-    features.append(log_covs[:, 0, 2:3])  # central-parietal
-    feature_names.append("riem_central_parietal")
+    # Frontal Theta/Beta ratio
+    theta_mask = (freqs >= 4) & (freqs <= 8)
+    beta_mask = (freqs >= 13) & (freqs <= 30)
+    theta_p = np.mean(np.mean(psd[:, fidx][:, :, theta_mask], axis=2), axis=1, keepdims=True)
+    beta_p = np.mean(np.mean(psd[:, fidx][:, :, beta_mask], axis=2), axis=1, keepdims=True)
+    features.append(theta_p / (beta_p + 1e-10))
 
-    return np.column_stack(features), feature_names
+    # Riemannian central-temporal
+    ct = ["central", "temporal"]
+    sigs = [np.mean(X[:, region_idx[r], :], axis=1) if region_idx[r]
+            else np.zeros((n_win, n_times)) for r in ct]
+    sigs = np.stack(sigs, axis=1)
+    covs = np.array([np.cov(sigs[i]) for i in range(n_win)])
+    covs += 1e-6 * np.eye(2)[np.newaxis]
+    features.append(np.log(np.abs(covs[:, 0, 1:2]) + 1e-10))
+
+    names = ["frontal_theta_rel", "frontal_alpha_rel", "alpha_asym_frontal",
+             "frontal_TBR", "riem_central_temporal"]
+    return np.column_stack(features), names
 
 
 def _alpha_asymmetry(alpha_power, ch_names, n_win, region="frontal"):
@@ -395,16 +371,13 @@ def _alpha_asymmetry(alpha_power, ch_names, n_win, region="frontal"):
     np.divide(r_alpha - l_alpha, denom, out=result, where=denom != 0)
     return result[:, np.newaxis]
 
-def build_feature_model_pipeline(model_name="svm", reducer="none"):
-    """Scaler + SVM or Logistic only."""
-    steps = [("scaler", StandardScaler())]
-    if model_name == "svm":
-        steps.append(("clf", SVC(kernel="rbf", class_weight="balanced", probability=True, random_state=42)))
-    elif model_name == "logistic":
-        steps.append(("clf", LogisticRegression(class_weight="balanced", max_iter=1000, random_state=42)))
-    else:
-        raise ValueError(f"Unknown classifier {model_name}")
-    return Pipeline(steps)
+def build_feature_model_pipeline():
+    """Scaler + Logistic C=0.1 (fixed, no tuning)."""
+    return Pipeline([
+        ("scaler", StandardScaler()),
+        ("clf", LogisticRegression(C=0.1, class_weight="balanced",
+                                   max_iter=1000, random_state=42)),
+    ])
 
 def compute_subject_balanced_sample_weights(groups):
     unique_groups, counts = np.unique(groups, return_counts=True)
@@ -412,16 +385,9 @@ def compute_subject_balanced_sample_weights(groups):
     w = np.array([weight_map[g] for g in groups])
     return w
 
-def _get_model_candidates():
-    """Return list of (model_name, param_grid) tuples. SVM + Logistic only."""
-    return [
-        ("svm", {"clf__C": [0.1, 1.0, 10.0]}),
-        ("logistic", {"clf__C": [0.01, 0.1, 1.0]}),
-    ]
-
 
 def run_simplified_cv(features, y, groups, n_splits=5, seed=42):
-    """CV on pre-extracted 29-dim features. No re-extraction inside."""
+    """CV on pre-extracted 5-dim features. Fixed Logistic C=0.1, no tuning."""
     cv_outer = StratifiedGroupKFold(n_splits=n_splits)
     y_true_subject = {}
     y_pred_subject_probs = {}
@@ -431,39 +397,10 @@ def run_simplified_cv(features, y, groups, n_splits=5, seed=42):
         X_tr, y_tr, g_tr = features[train_ix], y[train_ix], groups[train_ix]
         X_te, y_te, g_te = features[test_ix], y[test_ix], groups[test_ix]
 
-        ug, fi = np.unique(g_tr, return_index=True)
-        gl = y_tr[fi]
-        min_cls = np.min(np.bincount(gl)) if len(np.unique(gl)) > 1 else 0
-
-        best_score, best_pipe, best_name = -1, None, None
-        for model_name, param_grid in _get_model_candidates():
-            pipe = build_feature_model_pipeline(model_name=model_name, reducer="none")
-            if min_cls >= 3:
-                inner_cv = StratifiedGroupKFold(n_splits=min(3, min_cls))
-                grid = GridSearchCV(pipe, param_grid, cv=inner_cv, scoring="balanced_accuracy")
-                try:
-                    grid.fit(X_tr, y_tr, groups=g_tr)
-                    score = grid.best_score_
-                    pipe = grid.best_estimator_
-                except Exception:
-                    continue
-            else:
-                try:
-                    sw = compute_subject_balanced_sample_weights(g_tr)
-                    pipe.fit(X_tr, y_tr, clf__sample_weight=sw)
-                    score = 0.5
-                except Exception:
-                    continue
-            if score > best_score:
-                best_score, best_pipe, best_name = score, pipe, model_name
-
-        if best_pipe is None:
-            continue
-
-        # Retrain best on full train fold
+        pipe = build_feature_model_pipeline()
         sw = compute_subject_balanced_sample_weights(g_tr)
-        best_pipe.fit(X_tr, y_tr, clf__sample_weight=sw)
-        preds = best_pipe.predict_proba(X_te)[:, 1]
+        pipe.fit(X_tr, y_tr, clf__sample_weight=sw)
+        preds = pipe.predict_proba(X_te)[:, 1]
 
         for i, g in enumerate(g_te):
             if g not in y_true_subject:
@@ -471,9 +408,7 @@ def run_simplified_cv(features, y, groups, n_splits=5, seed=42):
                 y_pred_subject_probs[g] = []
             y_pred_subject_probs[g].append(preds[i])
 
-        fold_results.append({
-            "fold": fold_i, "model": best_name, "inner_score": best_score,
-        })
+        fold_results.append({"fold": fold_i})
 
     if not y_true_subject:
         raise ValueError("No valid predictions from simplified CV")
