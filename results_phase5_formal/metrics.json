@@ -1,0 +1,55 @@
+{
+  "experiment_type": "cross_dataset_replication_v1",
+  "primary_metric": "subject_level_balanced_accuracy",
+  "train_dataset": "MODMA",
+  "test_dataset": "TDBRAIN",
+  "modma_subjects": 43,
+  "modma_windows": 196,
+  "tdbrain_subjects": 168,
+  "tdbrain_windows": 840,
+  "tdbrain_qc": {
+    "total_subjects": 171,
+    "loaded": 168,
+    "no_eeg": 3,
+    "errors": 0,
+    "windows_total": 840,
+    "windows_kept": 840,
+    "subjects_final": 168
+  },
+  "balanced_accuracy": 0.5,
+  "balanced_accuracy_ci95": [
+    0.5,
+    0.5
+  ],
+  "roc_auc": 0.46421663442940037,
+  "f1": 0.0,
+  "n_permutations": 1000,
+  "effective_permutations": 1000,
+  "permutation_pvalue": 1.0,
+  "permuted_bas_mean": 0.5,
+  "permuted_bas_std": 0.0,
+  "seed": 42,
+  "feature_names": [
+    "parietal_theta_rel",
+    "parietal_alpha_rel",
+    "alpha_asym_frontal",
+    "parietal_TBR",
+    "riem_central_temporal"
+  ],
+  "elapsed_seconds": 20.5,
+  "conclusion": {
+    "conclusion": "negative",
+    "criteria": {
+      "ba_gt_0.6": false,
+      "ci_lower_gt_0.5": false,
+      "p_lt_0.05": false,
+      "min_per_class_gte_5": true
+    },
+    "values": {
+      "balanced_accuracy": 0.5,
+      "ci_lower": 0.5,
+      "permutation_pvalue": 1.0,
+      "min_subjects_per_class": 47
+    }
+  }
+}

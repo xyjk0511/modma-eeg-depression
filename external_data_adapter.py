@@ -24,9 +24,11 @@ logger = logging.getLogger(__name__)
 VALID_1020_CHANNELS = set(STANDARD_1020_REGION_MAP.keys())
 
 
-def load_tdbrain_subjects(tdbrain_root):
+def load_tdbrain_subjects(tdbrain_root, use_formal_status=False):
     """Parse participants.tsv, filter MDD + HC, return DataFrame.
 
+    If use_formal_status=True, filter by formal_status column (132 confirmed MDD)
+    instead of indication column (320 indicated MDD).
     Raises ValueError if no HC subjects found (fallback needed).
     """
     tsv_path = os.path.join(tdbrain_root, "participants.tsv")
@@ -48,13 +50,16 @@ def load_tdbrain_subjects(tdbrain_root):
         raise ValueError(f"No participant ID column found. Columns: {list(df.columns)}")
 
     # Identify group/diagnosis column
-    group_col = None
-    for candidate in ["indication", "group", "diagnosis", "diag", "dx"]:
-        if candidate in df.columns:
-            group_col = candidate
-            break
-    if group_col is None:
-        raise ValueError(f"No group/diagnosis column found. Columns: {list(df.columns)}")
+    if use_formal_status and "formal_status" in df.columns:
+        group_col = "formal_status"
+    else:
+        group_col = None
+        for candidate in ["indication", "group", "diagnosis", "diag", "dx"]:
+            if candidate in df.columns:
+                group_col = candidate
+                break
+        if group_col is None:
+            raise ValueError(f"No group/diagnosis column found. Columns: {list(df.columns)}")
 
     df[id_col] = df[id_col].astype(str).str.strip()
     df[group_col] = df[group_col].astype(str).str.strip()
@@ -130,12 +135,13 @@ def load_tdbrain_features(
     bad_amp_uv=200.0,
     window_sec=10.0,
     min_windows_per_subject=3,
+    use_formal_status=False,
 ):
     """Load TDBRAIN, preprocess with locked params, return features.
 
     Returns (features, y, groups, ch_names, qc_stats).
     """
-    participants_df = load_tdbrain_subjects(tdbrain_root)
+    participants_df = load_tdbrain_subjects(tdbrain_root, use_formal_status=use_formal_status)
     label_map = {"MDD": 1, "HC": 0}
     thr_v = bad_amp_uv * 1e-6
 

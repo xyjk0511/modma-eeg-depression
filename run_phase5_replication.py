@@ -54,6 +54,8 @@ def parse_args(argv=None):
     p.add_argument("--bad-amp-uv", type=float, default=200.0)
     p.add_argument("--highpass-freq", type=float, default=1.0)
     p.add_argument("--min-windows-per-subject", type=int, default=3)
+    p.add_argument("--use-formal-status", action="store_true",
+                   help="Filter TDBRAIN by formal_status (132 confirmed MDD) instead of indication (320)")
     return p.parse_args(argv)
 
 
@@ -135,6 +137,7 @@ def run_replication(args):
         crop_duration=args.crop_duration, highpass_freq=args.highpass_freq,
         bad_amp_uv=args.bad_amp_uv, window_sec=args.window_sec,
         min_windows_per_subject=args.min_windows_per_subject,
+        use_formal_status=args.use_formal_status,
     )
     logger.info(
         f"TDBRAIN: {ext_qc.get('subjects_final', '?')} subjects, "
