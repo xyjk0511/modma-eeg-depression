@@ -140,6 +140,8 @@ def full_grid_search(X_raw, feat_27, y, groups, n_splits, seed):
                 best_cfg = (method, C, pca_n)
         except Exception:
             pass
+    if best_cfg is None:
+        raise RuntimeError("All grid configs failed")
     return best_ba, best_auc, best_cfg
 
 
@@ -147,7 +149,7 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--tdbrain-root", required=True)
     parser.add_argument("--output-dir", default="results_tdbrain_v9")
-    parser.add_argument("--n-permutations", type=int, default=100)
+    parser.add_argument("--n-permutations", type=int, default=1000)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
@@ -227,6 +229,8 @@ def main():
         "dataset": "TDBRAIN_formal_status",
         "n_mdd": int(n_mdd), "n_hc": int(n_hc), "n_windows": int(len(y)),
         "methodology": {
+            "evidence_level": "exploratory",
+            "note": "CONFIGS derived from prior same-dataset optimization",
             "threshold": "fixed_0.5",
             "model_selection": "grid_search_inside_permutation",
             "permutation_denominator": "n_valid_only",
