@@ -9,18 +9,18 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 
 ## Current Position
 
-Phase: 5 of 5 (Confirmatory Replication) -- PLANNED
-Status: 2 plans ready (05-01, 05-02), verification passed
-Last activity: 2026-02-22 — Phase 5 planned and verified
+Phase: 5 of 5 (Confirmatory Replication) -- IN PROGRESS
+Status: Plan 05-01 complete, 05-02 remaining
+Last activity: 2026-02-22 — Plan 05-01 executed (pre-registration + adapter)
 
-Progress: [████████░░] 80%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 4
-- Average duration: 6.8 min
-- Total execution time: 0.45 hours
+- Total plans completed: 5
+- Average duration: 6.0 min
+- Total execution time: 0.50 hours
 
 **By Phase:**
 
@@ -28,6 +28,7 @@ Progress: [████████░░] 80%
 |-------|-------|-------|----------|
 | 1-QC Repair | 2/2 | 17 min | 8.5 min |
 | 3-Feature Opt | 2/2 | 10 min | 5 min |
+| 5-Replication | 1/2 | 3 min | 3 min |
 
 ## Accumulated Context
 
@@ -56,9 +57,13 @@ Recent decisions affecting current work:
 - 04: BA=0.613 meets threshold but p=0.135 — statistically not significant
 - 04: Conclusion: negative/inconclusive; pre-register for confirmatory replication
 
+- 05-01: TDBRAIN BDF file discovery uses multiple BIDS naming patterns with glob fallback
+- 05-01: Spectrum sanity check runs on first subject only (diagnostic, not gate)
+- 05-01: 10-20 channel filtering uses STANDARD_1020_REGION_MAP from existing pipeline
+
 ### Pending Todos
 
-- Execute Phase 5 plans (05-01: pre-registration + adapter, 05-02: replication run)
+- Execute Phase 5 plan 05-02: replication run (train MODMA, test TDBRAIN, report)
 
 ### Blockers/Concerns
 
@@ -67,6 +72,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-02-22 07:14
-Stopped at: Completed 03-02-PLAN.md (Phase 3 complete)
-Resume file: .planning/phases/04-statistical-validation/04-01-PLAN.md
+Last session: 2026-02-22 10:13
+Stopped at: Completed 05-01-PLAN.md (pre-registration + adapter)
+Resume file: .planning/phases/05-confirmatory-replication-with-pre-registered-pipeline/05-02-PLAN.md

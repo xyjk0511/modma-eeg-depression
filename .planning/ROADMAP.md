@@ -85,7 +85,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 05-01-PLAN.md — Pre-registration document + external data adapter + git tag
+- [x] 05-01-PLAN.md — Pre-registration document + external data adapter + git tag
 - [ ] 05-02-PLAN.md — Replication runner script + execution + report
 
 ## Progress
@@ -96,4 +96,4 @@ Plans:
 | 2. Preprocessing Upgrade | 1/1 | Complete (pyprep deferred) | 2026-02-22 |
 | 3. Feature & Permutation Optimization | 2/2 | Complete | 2026-02-22 |
 | 4. Statistical Validation | 1/1 | Complete (negative) | 2026-02-22 |
-| 5. Confirmatory Replication | 0/2 | Planning complete | — |
+| 5. Confirmatory Replication | 1/2 | In progress | — |
