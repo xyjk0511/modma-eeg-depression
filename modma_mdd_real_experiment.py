@@ -511,10 +511,17 @@ def get_ci_bootstrap(y_true, y_pred, metric_fn, n_bootstraps=1000, seed=42):
     return (float(np.percentile(scores, 2.5)), float(np.percentile(scores, 97.5)))
 
 
-def build_report(X_raw, y, groups, cv_results, ch_names, sfreq,
-                  bad_amp_candidates=(200, 300, 400), max_bad_channels=3,
-                  min_windows_per_subject=3, n_permutations=1000, seed=42,
-                  n_jobs=4):
+def _run_one_perm_cv(features, y_perm, groups, n_splits, seed):
+    """Run simplified CV on permuted labels, return BA or None on failure."""
+    try:
+        res = run_simplified_cv(features, y_perm, groups, n_splits, seed)
+        return res["subject_level_metrics"]["balanced_accuracy"]
+    except Exception:
+        return None
+
+
+def build_report(features, y, groups, cv_results, n_permutations=1000,
+                 seed=42, n_jobs=4, n_splits=5):
     y_subj_true = cv_results["y_subj_true"]
     y_subj_prob = cv_results["y_subj_prob"]
     y_subj_pred = (y_subj_prob >= 0.5).astype(int)
@@ -522,14 +529,14 @@ def build_report(X_raw, y, groups, cv_results, ch_names, sfreq,
     ba_ci = get_ci_bootstrap(y_subj_true, y_subj_pred, balanced_accuracy_score, seed=seed)
 
     report = {
-        "experiment_type": "connectivity_riemannian_v4",
+        "experiment_type": "feature_reduced_v5",
         "primary_metric": "subject_level_balanced_accuracy",
         "balanced_accuracy": cv_results["subject_level_metrics"]["balanced_accuracy"],
         "balanced_accuracy_ci95": ba_ci,
         "roc_auc": cv_results["subject_level_metrics"]["roc_auc"],
         "f1": cv_results["subject_level_metrics"]["f1"],
         "n_permutations": n_permutations,
-        "permutation_strategy": "full_model_selection_rerun",
+        "permutation_strategy": "label_permutation_pre_extracted",
         "seed": seed
     }
 
@@ -540,25 +547,18 @@ def build_report(X_raw, y, groups, cv_results, ch_names, sfreq,
 
         # Pre-generate permuted labels sequentially for deterministic seeding
         jobs = []
-        for i in range(n_permutations):
+        for _ in range(n_permutations):
             shuffled_labels = rng.permutation(group_labels)
-            label_map = {g: l for g, l in zip(unique_groups, shuffled_labels)}
-            y_permuted = np.array([label_map[g] for g in groups])
-            permuted_group_labels = y_permuted[first_idx]
-            if len(np.unique(permuted_group_labels)) < 2:
+            if len(np.unique(shuffled_labels)) < 2:
                 continue
-            ns = min(5, np.min(np.unique(permuted_group_labels, return_counts=True)[1]))
-            if ns < 2:
-                ns = 2
-            jobs.append((y_permuted, ns))
+            label_map = dict(zip(unique_groups, shuffled_labels))
+            y_perm = np.array([label_map[g] for g in groups])
+            jobs.append(y_perm)
 
         logger.info(f"Running {len(jobs)} permutations with joblib (n_jobs={n_jobs})...")
         results = Parallel(n_jobs=n_jobs)(
-            delayed(_run_one_permutation)(
-                X_raw, y_p, groups, ch_names, sfreq,
-                bad_amp_candidates, max_bad_channels,
-                min_windows_per_subject, ns, seed)
-            for y_p, ns in jobs)
+            delayed(_run_one_perm_cv)(features, y_p, groups, n_splits, seed)
+            for y_p in jobs)
         permuted_bas = [r for r in results if r is not None]
 
         report["effective_permutations"] = len(permuted_bas)
