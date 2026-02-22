@@ -32,56 +32,9 @@
 - [ ] **VAL-02**: Permutation test p < 0.05
 - [x] **VAL-03**: QC 报告显示 MDD/HC 两组保留率差异 < 20%
 
-## v2 Requirements
+### 确认性复制 (Phase 5)
 
-### 预处理
-
-- **PRE-03**: 集成 autoreject 进行数据驱动的 epoch 修复
-- **PRE-04**: 集成 mne-icalabel 自动 ICA 伪迹去除
-- **PRE-05**: 自适应振幅阈值（median + 5*MAD per subject）
-
-### 特征工程
-
-- **FEAT-02**: 样本熵 SampEn per region
-- **FEAT-03**: 非周期特征 specparam（1/f 指数）
-- **FEAT-04**: Lempel-Ziv 复杂度
-- **FEAT-05**: Gamma 频段功率
-
-### 架构
-
-- **ARCH-03**: 拆分 962 行单文件为 7 模块
-
-## Out of Scope
-
-| Feature | Reason |
-|---------|--------|
-| 3通道数据集 | 实验证明特征空间不足，BA≈0.50 |
-| 深度学习 | 样本量不足（~40人） |
-| 实时分类 | 当前是离线研究 |
-| wPLI 连接性 | 延迟到 v2 特征验证后 |
-
-## Traceability
-
-| Requirement | Phase | Status |
-|-------------|-------|--------|
-| QC-01 | Phase 1 | Done (01-01) |
-| QC-02 | Phase 1 | Done (01-01) |
-| QC-03 | Phase 1 | Done (01-01) |
-| QC-04 | Phase 1 | Done (01-02) |
-| PRE-01 | Phase 1 | Done (01-01) |
-| PRE-02 | Phase 2 | Pending |
-| FEAT-01 | Phase 3 | Done (03-01) |
-| ARCH-01 | Phase 2 | Pending |
-| ARCH-02 | Phase 3 | Done (03-02) |
-| VAL-01 | Phase 4 | Pending |
-| VAL-02 | Phase 4 | Pending |
-| VAL-03 | Phase 1 | Done (01-02) |
-
-**Coverage:**
-- v1 requirements: 12 total
-- Mapped to phases: 12
-- Unmapped: 0 ✓
-
----
-*Requirements defined: 2026-02-22*
-*Last updated: 2026-02-22 after initial definition*
+- [ ] **REP-01**: Pre-registration document committed and git-tagged before any external data touches classifier
+- [ ] **REP-02**: External data adapter loads TDBRAIN BDF files, maps 10-20 channels to regions, applies locked preprocessing
+- [ ] **REP-03**: Train on full MODMA (43 subjects), test on external dataset with frozen model (no re-tuning)
+- [ ] **REP-04**: Complete report with BA, CI, p-value, and conclusion (positive or negative)

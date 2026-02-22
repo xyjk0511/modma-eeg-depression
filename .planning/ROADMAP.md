@@ -10,6 +10,7 @@ This project fixes the QC bottleneck that drops 80% of subjects (11/53 retained)
 - [x] **Phase 2: Preprocessing Upgrade** - .npz caching for fast iteration (pyprep deferred — current interpolation retains 43 subjects)
 - [x] **Phase 3: Feature Reduction & Pipeline Optimization** - Reduce features from 139→29 dims, simplify pipeline, accelerate permutation test
 - [x] **Phase 4: Statistical Validation** - BA=0.613 (>0.60) but p=0.135 — negative conclusion
+- [ ] **Phase 5: Confirmatory Replication** - Pre-register locked pipeline, train on MODMA, test on external dataset (TDBRAIN)
 
 ## Phase Details
 
@@ -72,6 +73,21 @@ Plans:
 Plans:
 - [x] 04-01: Feature variant diagnostic + full 1000-perm validation → negative conclusion
 
+### Phase 5: Confirmatory Replication with Pre-Registered Pipeline
+**Goal**: Pre-register locked pipeline (5-dim parietal + Logistic C=0.1), train on MODMA, test on external dataset (TDBRAIN), report result
+**Depends on**: Phase 4
+**Requirements**: REP-01, REP-02, REP-03, REP-04
+**Success Criteria** (what must be TRUE):
+  1. Pre-registration document is git-tagged before any external data touches the classifier
+  2. Data adapter loads external BDF files with region-level channel mapping and locked preprocessing
+  3. Model trained on full MODMA (43 subjects), tested on external dataset with no re-tuning
+  4. Complete report with BA, CI, p-value, and conclusion (positive or negative)
+**Plans**: 2 plans
+
+Plans:
+- [ ] 05-01-PLAN.md — Pre-registration document + external data adapter + git tag
+- [ ] 05-02-PLAN.md — Replication runner script + execution + report
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -80,3 +96,4 @@ Plans:
 | 2. Preprocessing Upgrade | 1/1 | Complete (pyprep deferred) | 2026-02-22 |
 | 3. Feature & Permutation Optimization | 2/2 | Complete | 2026-02-22 |
 | 4. Statistical Validation | 1/1 | Complete (negative) | 2026-02-22 |
+| 5. Confirmatory Replication | 0/2 | Planning complete | — |
