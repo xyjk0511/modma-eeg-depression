@@ -5,15 +5,15 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Fix QC parameters to retain enough subjects for MDD vs HC classification
-**Current focus:** All phases complete — project concluded with negative replication result
+**Current focus:** Phase 6 — Literature-informed feature expansion (5→15 dims)
 
 ## Current Position
 
-Phase: 5 of 5 (Confirmatory Replication) -- COMPLETE
-Status: All plans executed. Cross-dataset replication negative (BA=0.500, p=1.0).
-Last activity: 2026-02-22 — Phase 5 replication complete, results committed
+Phase: 6 of 6 (Literature-Informed Feature Expansion) -- PLANNING
+Status: Expanding features based on literature evidence (beta, connectivity, temporal/central)
+Last activity: 2026-02-22 — Phase 6 added to roadmap, planning started
 
-Progress: [██████████] 100%
+Progress: [█████████░] 90%
 
 ## Performance Metrics
 
