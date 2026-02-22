@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Fix QC parameters to retain enough subjects for MDD vs HC classification
-**Current focus:** Phase 1: QC Repair
+**Current focus:** Phase 3: Feature Reduction & Pipeline Optimization
 
 ## Current Position
 
-Phase: 1 of 4 (QC Repair) -- COMPLETE
-Plan: 2 of 2 in current phase
-Status: Phase Complete
-Last activity: 2026-02-22 — Completed 01-02-PLAN.md
+Phase: 3 of 4 (Feature Reduction & Pipeline Optimization) -- CONTEXT GATHERED
+Plan: Ready for planning
+Status: Context captured, decisions locked for 29-dim feature set + simplified pipeline
+Last activity: 2026-02-22 — Phase 3 context discussion complete
 
-Progress: [██░░░░░░░░] 20%
+Progress: [████░░░░░░] 40%
 
 ## Performance Metrics
 
@@ -42,6 +42,10 @@ Recent decisions affecting current work:
 - 01-02: Per-window QC threshold changed from zero-tolerance to 12% to match Raw-level gate
 - 01-02: Group retention stats (mdd_rate, hc_rate, diff) saved to metrics.json
 
+- 03: Feature reduction 139→29 dims (PSD-rel + alpha-asym + theta/beta-ratio + riem-top2)
+- 03: Fixed QC 200μV, drop LightGBM, SVM+Logistic only
+- 03: Permutation pre-extract features, permute labels only, 1000 iterations
+
 ### Pending Todos
 
 None yet.
@@ -53,6 +57,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-22 03:22
-Stopped at: Completed 01-02-PLAN.md, Phase 01 complete. Ready for Phase 02.
-Resume file: None
+Last session: 2026-02-22 06:31
+Stopped at: Phase 3 context gathered
+Resume file: .planning/phases/03-feature-permutation-opt/03-CONTEXT.md
