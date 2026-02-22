@@ -99,6 +99,7 @@ def parse_args(argv=None):
     parser.add_argument("--bad-amp-uv", type=float, default=200.0, help="Amplitude threshold in uV")
     parser.add_argument("--max-bad-channels", type=int, default=3, help="Max bad channels per window")
     parser.add_argument("--highpass-freq", type=float, default=0.5, help="High-pass filter frequency in Hz")
+    parser.add_argument("--n-jobs", type=int, default=4, help="Parallel jobs for permutation test")
 
     return parser.parse_args(argv)
 
@@ -707,13 +708,15 @@ def _run_one_permutation(X_raw, y_permuted, groups, ch_names, sfreq,
             min_windows_per_subject=min_windows_per_subject,
             n_splits=n_splits, seed=seed)
         return out["subject_level_metrics"]["balanced_accuracy"]
-    except Exception:
+    except Exception as e:
+        logger.warning("Permutation failed: %s", e)
         return None
 
 
 def build_report(X_raw, y, groups, cv_results, ch_names, sfreq,
                   bad_amp_candidates=(200, 300, 400), max_bad_channels=3,
-                  min_windows_per_subject=3, n_permutations=1000, seed=42):
+                  min_windows_per_subject=3, n_permutations=1000, seed=42,
+                  n_jobs=4):
     y_subj_true = cv_results["y_subj_true"]
     y_subj_prob = cv_results["y_subj_prob"]
     y_subj_pred = (y_subj_prob >= 0.5).astype(int)
@@ -751,8 +754,8 @@ def build_report(X_raw, y, groups, cv_results, ch_names, sfreq,
                 ns = 2
             jobs.append((y_permuted, ns))
 
-        logger.info(f"Running {len(jobs)} permutations with joblib (n_jobs=4)...")
-        results = Parallel(n_jobs=4)(
+        logger.info(f"Running {len(jobs)} permutations with joblib (n_jobs={n_jobs})...")
+        results = Parallel(n_jobs=n_jobs)(
             delayed(_run_one_permutation)(
                 X_raw, y_p, groups, ch_names, sfreq,
                 bad_amp_candidates, max_bad_channels,
@@ -805,7 +808,7 @@ def determine_conclusion(report, subject_labels):
     }
 
 
-def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq, n_permutations, seed, min_windows_per_subject, window_sec, crop_duration, bad_amp_uv=200.0, max_bad_channels=3, highpass_freq=0.5):
+def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq, n_permutations, seed, min_windows_per_subject, window_sec, crop_duration, bad_amp_uv=200.0, max_bad_channels=3, highpass_freq=0.5, n_jobs=4):
     os.makedirs(output_dir, exist_ok=True)
     participants_path = os.path.join(bids_root, "participants.tsv")
 
@@ -882,7 +885,7 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
         bad_amp_candidates=bad_amp_candidates,
         max_bad_channels=max_bad_channels,
         min_windows_per_subject=min_windows_per_subject,
-        n_permutations=n_permutations, seed=seed)
+        n_permutations=n_permutations, seed=seed, n_jobs=n_jobs)
     report["elapsed_seconds"] = round(time.time() - t0, 1)
 
     # Save model comparison
@@ -955,6 +958,7 @@ if __name__ == "__main__":
             bad_amp_uv=args.bad_amp_uv,
             max_bad_channels=args.max_bad_channels,
             highpass_freq=args.highpass_freq,
+            n_jobs=args.n_jobs,
         )
     except (ValueError, FileNotFoundError) as e:
         logger.error(f"Error: {e}")
