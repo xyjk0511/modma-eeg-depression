@@ -1,6 +1,16 @@
 # MODMA EEG 抑郁症分类
 
-## What This Is
+## Current Milestone: v2.0 ERP Task-State Classification
+
+**Goal:** 基于 ERP 任务态数据（Dot-probe hcue/fcue/scue），系统化提取 P300/N200 成分特征，融合多条件，验证统计显著性
+
+**Target features:**
+- P300 特征丰富化（峰值幅度、潜伏期、面积）
+- N200 成分（100–250ms 窗口）
+- 多条件融合（hcue + scue + fcue 特征拼接）
+- Permutation test 验证 BA 统计显著性（p<0.05）
+
+
 
 基于 MODMA 数据集的 EEG 脑电特征抑郁症（MDD）vs 健康对照（HC）二分类项目。已有可运行的管线（modma_mdd_real_experiment.py），但当前分类效果在 chance level（BA≈0.54），需要通过数据质量改进来提升可分性。
 

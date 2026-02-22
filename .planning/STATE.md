@@ -9,11 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 
 ## Current Position
 
-Phase: 6 of 6 (Literature-Informed Feature Expansion) -- Plan 2/2 COMPLETE
-Status: ALL PHASES COMPLETE. 15-dim cross-dataset BA=0.500, p=1.0 — negative (same as Phase 5 baseline)
-Last activity: 2026-02-22 — Plan 06-02 executed (15-dim cross-dataset replication)
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements for v2.0 ERP milestone
+Last activity: 2026-02-22 — Milestone v2.0 started (ERP task-state classification)
 
-Progress: [██████████] 100%
+Progress: [░░░░░░░░░░] 0%
 
 ## Performance Metrics
 
