@@ -49,7 +49,7 @@ def load_tdbrain_subjects(tdbrain_root):
 
     # Identify group/diagnosis column
     group_col = None
-    for candidate in ["group", "diagnosis", "diag", "dx"]:
+    for candidate in ["indication", "group", "diagnosis", "diag", "dx"]:
         if candidate in df.columns:
             group_col = candidate
             break
@@ -63,7 +63,7 @@ def load_tdbrain_subjects(tdbrain_root):
     label_map = {
         "MDD": "MDD", "mdd": "MDD", "depression": "MDD", "Depression": "MDD",
         "HC": "HC", "hc": "HC", "healthy": "HC", "Healthy": "HC",
-        "control": "HC", "Control": "HC", "neurotypical": "HC",
+        "HEALTHY": "HC", "control": "HC", "Control": "HC", "neurotypical": "HC",
     }
     df["group"] = df[group_col].map(label_map)
     df["participant_id"] = df[id_col]
@@ -142,7 +142,7 @@ def load_tdbrain_features(
     ch_names_out = None
     spectrum_checked = False
     qc_stats = {"total_subjects": len(participants_df), "loaded": 0,
-                "no_bdf": 0, "errors": 0, "windows_total": 0, "windows_kept": 0}
+                "no_eeg": 0, "errors": 0, "windows_total": 0, "windows_kept": 0}
 
     for _, row in participants_df.iterrows():
         sub_id = row["participant_id"]
@@ -151,8 +151,9 @@ def load_tdbrain_features(
         # Find BrainVision .vhdr file
         safe_id = os.path.basename(sub_id)
         vhdr_path = None
-        # Search patterns: BIDS-like and flat layouts
+        # Search patterns: TDBRAIN uses ses-1 layer
         search_dirs = [
+            os.path.join(tdbrain_root, safe_id, "ses-1", "eeg"),
             os.path.join(tdbrain_root, safe_id, "eeg"),
             os.path.join(tdbrain_root, safe_id),
         ]
@@ -166,7 +167,7 @@ def load_tdbrain_features(
 
         if vhdr_path is None:
             logger.warning(f"No .vhdr file for {safe_id}, skipping")
-            qc_stats["no_bdf"] += 1
+            qc_stats["no_eeg"] += 1
             continue
 
         try:
