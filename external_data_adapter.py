@@ -1,7 +1,7 @@
 """TDBRAIN external data adapter for confirmatory replication.
 
-Loads TDBRAIN BDF files, picks 10-20 channels, applies locked preprocessing,
-returns features in the same format as the MODMA pipeline.
+Loads TDBRAIN BrainVision (.vhdr) files, picks 10-20 channels, applies locked
+preprocessing, returns features in the same format as the MODMA pipeline.
 """
 import os
 import glob
@@ -148,33 +148,29 @@ def load_tdbrain_features(
         sub_id = row["participant_id"]
         group_label = row["group"]
 
-        # Find BDF file (common BIDS patterns)
+        # Find BrainVision .vhdr file
         safe_id = os.path.basename(sub_id)
-        bdf_candidates = [
-            os.path.join(tdbrain_root, safe_id, "eeg", f"{safe_id}_task-restEC_eeg.bdf"),
-            os.path.join(tdbrain_root, safe_id, "eeg", f"{safe_id}_task-rest_eeg.bdf"),
-            os.path.join(tdbrain_root, safe_id, "eeg", f"{safe_id}_eeg.bdf"),
+        vhdr_path = None
+        # Search patterns: BIDS-like and flat layouts
+        search_dirs = [
+            os.path.join(tdbrain_root, safe_id, "eeg"),
+            os.path.join(tdbrain_root, safe_id),
         ]
-        bdf_path = None
-        for p in bdf_candidates:
-            matches = glob.glob(p)
+        for d in search_dirs:
+            matches = glob.glob(os.path.join(d, "*.vhdr"))
             if matches:
-                bdf_path = matches[0]
+                # Prefer eyes-closed resting state if multiple files
+                ec = [m for m in matches if "EC" in os.path.basename(m)]
+                vhdr_path = ec[0] if ec else matches[0]
                 break
-        # Also try glob for any .bdf
-        if bdf_path is None:
-            pattern = os.path.join(tdbrain_root, safe_id, "eeg", "*.bdf")
-            matches = glob.glob(pattern)
-            if matches:
-                bdf_path = matches[0]
 
-        if bdf_path is None:
-            logger.warning(f"No BDF file for {safe_id}, skipping")
+        if vhdr_path is None:
+            logger.warning(f"No .vhdr file for {safe_id}, skipping")
             qc_stats["no_bdf"] += 1
             continue
 
         try:
-            raw = mne.io.read_raw_bdf(bdf_path, preload=True, verbose=False)
+            raw = mne.io.read_raw_brainvision(vhdr_path, preload=True, verbose=False)
 
             # Pick only standard 10-20 channels
             keep_chs = [ch for ch in raw.ch_names if ch in VALID_1020_CHANNELS]
