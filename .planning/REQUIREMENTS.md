@@ -10,7 +10,7 @@
 - [x] **QC-01**: max_bad_channels 从固定值 3 调整为通道总数的 ~12%（128通道→~15）
 - [x] **QC-02**: 对超过阈值的坏通道执行球面样条插值，而非丢弃整个窗口
 - [x] **QC-03**: 跳过每个受试者的 Window 0（滤波器边缘效应）
-- [ ] **QC-04**: QC 后保留受试者数 ≥ 35（当前 11）
+- [x] **QC-04**: QC 后保留受试者数 ≥ 35（当前 11）
 
 ### 预处理升级
 
@@ -30,7 +30,7 @@
 
 - [ ] **VAL-01**: 分类 BA > 0.60
 - [ ] **VAL-02**: Permutation test p < 0.05
-- [ ] **VAL-03**: QC 报告显示 MDD/HC 两组保留率差异 < 20%
+- [x] **VAL-03**: QC 报告显示 MDD/HC 两组保留率差异 < 20%
 
 ## v2 Requirements
 
@@ -67,7 +67,7 @@
 | QC-01 | Phase 1 | Done (01-01) |
 | QC-02 | Phase 1 | Done (01-01) |
 | QC-03 | Phase 1 | Done (01-01) |
-| QC-04 | Phase 1 | Pending |
+| QC-04 | Phase 1 | Done (01-02) |
 | PRE-01 | Phase 1 | Done (01-01) |
 | PRE-02 | Phase 2 | Pending |
 | FEAT-01 | Phase 3 | Pending |
@@ -75,7 +75,7 @@
 | ARCH-02 | Phase 3 | Pending |
 | VAL-01 | Phase 4 | Pending |
 | VAL-02 | Phase 4 | Pending |
-| VAL-03 | Phase 1 | Pending |
+| VAL-03 | Phase 1 | Done (01-02) |
 
 **Coverage:**
 - v1 requirements: 12 total

@@ -6,7 +6,7 @@ This project fixes the QC bottleneck that drops 80% of subjects (11/53 retained)
 
 ## Phases
 
-- [ ] **Phase 1: QC Repair** - Fix QC parameters and filtering to retain 35+ subjects with balanced MDD/HC groups
+- [x] **Phase 1: QC Repair** - Fix QC parameters and filtering to retain 35+ subjects with balanced MDD/HC groups
 - [ ] **Phase 2: Preprocessing Upgrade** - Integrate pyprep for robust bad channel detection and .npz caching for fast iteration
 - [ ] **Phase 3: Feature & Permutation Optimization** - Add Theta/Beta ratio feature and optimize permutation test to extract features once
 - [ ] **Phase 4: Statistical Validation** - Achieve BA>0.60 with permutation p<0.05
@@ -27,7 +27,7 @@ This project fixes the QC bottleneck that drops 80% of subjects (11/53 retained)
 
 Plans:
 - [x] 01-01-PLAN.md — Core pipeline repair (montage, interpolation, W0 skip, highpass 1.0, dynamic max_bad)
-- [ ] 01-02-PLAN.md — QC report extension + end-to-end verification (>=35 subjects, group balance)
+- [x] 01-02-PLAN.md — QC report extension + end-to-end verification (>=35 subjects, group balance)
 
 ### Phase 2: Preprocessing Upgrade
 **Goal**: Bad channel detection uses multi-criteria PREP standard and EDF loading is cached for sub-second iteration
@@ -74,7 +74,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. QC Repair | 1/2 | In progress | - |
+| 1. QC Repair | 2/2 | Complete | 2026-02-22 |
 | 2. Preprocessing Upgrade | 0/? | Not started | - |
 | 3. Feature & Permutation Optimization | 0/? | Not started | - |
 | 4. Statistical Validation | 0/? | Not started | - |
