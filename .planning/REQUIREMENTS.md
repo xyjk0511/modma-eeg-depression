@@ -7,14 +7,14 @@
 
 ### QC 修复
 
-- [ ] **QC-01**: max_bad_channels 从固定值 3 调整为通道总数的 ~12%（128通道→~15）
-- [ ] **QC-02**: 对超过阈值的坏通道执行球面样条插值，而非丢弃整个窗口
-- [ ] **QC-03**: 跳过每个受试者的 Window 0（滤波器边缘效应）
+- [x] **QC-01**: max_bad_channels 从固定值 3 调整为通道总数的 ~12%（128通道→~15）
+- [x] **QC-02**: 对超过阈值的坏通道执行球面样条插值，而非丢弃整个窗口
+- [x] **QC-03**: 跳过每个受试者的 Window 0（滤波器边缘效应）
 - [ ] **QC-04**: QC 后保留受试者数 ≥ 35（当前 11）
 
 ### 预处理升级
 
-- [ ] **PRE-01**: 高通滤波从 0.5Hz 提升到 1.0Hz
+- [x] **PRE-01**: 高通滤波从 0.5Hz 提升到 1.0Hz
 - [ ] **PRE-02**: 集成 pyprep 进行 PREP 标准坏通道检测（替代纯振幅阈值）
 
 ### 特征工程
@@ -64,11 +64,11 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| QC-01 | Phase 1 | Pending |
-| QC-02 | Phase 1 | Pending |
-| QC-03 | Phase 1 | Pending |
+| QC-01 | Phase 1 | Done (01-01) |
+| QC-02 | Phase 1 | Done (01-01) |
+| QC-03 | Phase 1 | Done (01-01) |
 | QC-04 | Phase 1 | Pending |
-| PRE-01 | Phase 1 | Pending |
+| PRE-01 | Phase 1 | Done (01-01) |
 | PRE-02 | Phase 2 | Pending |
 | FEAT-01 | Phase 3 | Pending |
 | ARCH-01 | Phase 2 | Pending |

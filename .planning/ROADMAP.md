@@ -26,7 +26,7 @@ This project fixes the QC bottleneck that drops 80% of subjects (11/53 retained)
 **Plans**: 2 plans
 
 Plans:
-- [ ] 01-01-PLAN.md — Core pipeline repair (montage, interpolation, W0 skip, highpass 1.0, dynamic max_bad)
+- [x] 01-01-PLAN.md — Core pipeline repair (montage, interpolation, W0 skip, highpass 1.0, dynamic max_bad)
 - [ ] 01-02-PLAN.md — QC report extension + end-to-end verification (>=35 subjects, group balance)
 
 ### Phase 2: Preprocessing Upgrade
@@ -74,7 +74,7 @@ Plans:
 
 | Phase | Plans Complete | Status | Completed |
 |-------|----------------|--------|-----------|
-| 1. QC Repair | 0/? | Not started | - |
+| 1. QC Repair | 1/2 | In progress | - |
 | 2. Preprocessing Upgrade | 0/? | Not started | - |
 | 3. Feature & Permutation Optimization | 0/? | Not started | - |
 | 4. Statistical Validation | 0/? | Not started | - |
