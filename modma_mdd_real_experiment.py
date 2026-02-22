@@ -27,12 +27,6 @@ try:
 except ImportError:
     HAS_LGBM = False
 
-try:
-    from pyriemann.estimation import Covariances
-    from pyriemann.tangentspace import TangentSpace
-    HAS_PYRIEMANN = True
-except ImportError:
-    HAS_PYRIEMANN = False
 
 _lgbm_warned = False
 logger = logging.getLogger(__name__)
@@ -401,7 +395,11 @@ def compute_connectivity_features(X, sfreq, region_idx):
 
 
 def compute_riemannian_features(X, region_idx):
-    """Tangent space features from 5-region covariance matrices = 15 dims."""
+    """Log-covariance upper-triangle from 5-region signals = 15 dims.
+
+    Uses log of covariance entries (Riemannian-inspired) without TangentSpace
+    fit, so train/test feature spaces are always consistent.
+    """
     n_win = X.shape[0]
     region_data = []
     for region in REGIONS:
@@ -410,16 +408,10 @@ def compute_riemannian_features(X, region_idx):
     region_data = np.stack(region_data, axis=1)  # (n_win, 5, n_times)
     triu_idx = np.triu_indices(5)
     names = [f"riem_{REGIONS[i]}_{REGIONS[j]}" for i, j in zip(triu_idx[0], triu_idx[1])]
-    if not HAS_PYRIEMANN:
-        covs = np.array([np.cov(region_data[i]) for i in range(n_win)])
-        covs += 1e-6 * np.eye(5)[np.newaxis]
-        return covs[:, triu_idx[0], triu_idx[1]], names
-    cov_est = Covariances(estimator='lwf')
-    covs = cov_est.fit_transform(region_data)
+    covs = np.array([np.cov(region_data[i]) for i in range(n_win)])
     covs += 1e-6 * np.eye(5)[np.newaxis]
-    ts = TangentSpace()
-    tangent = ts.fit_transform(covs)
-    return tangent, names
+    log_covs = np.log(np.abs(covs) + 1e-10)
+    return log_covs[:, triu_idx[0], triu_idx[1]], names
 
 
 def build_feature_model_pipeline(model_name="svm", reducer="none"):
@@ -824,7 +816,7 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
     if X_windows.ndim != 3 or len(X_windows) == 0:
         raise ValueError(f"No valid EDF windows loaded (got shape {X_windows.shape}). Check that EDF files exist under bids_root.")
 
-    bad_amp_candidates = [bad_amp_uv] if bad_amp_uv not in [200, 300, 400] else [200, 300, 400]
+    bad_amp_candidates = (bad_amp_uv,)
 
     # QC report uses user-specified threshold
     keep_mask = build_quality_mask(X_windows, bad_amp_uv=bad_amp_uv, max_bad_channels=max_bad_channels)
@@ -892,8 +884,10 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
         pd.DataFrame({"balanced_accuracy": perm_scores}).to_csv(
             os.path.join(output_dir, "permutation_scores.csv"), index=False)
 
-    # Stopping criteria
-    conclusion = determine_conclusion(report, subject_labels)
+    # Stopping criteria — use CV-evaluated subjects, not lenient-filtered set
+    cv_subject_labels = dict(zip(cv_results["subj_list"],
+                                  cv_results["y_subj_true"].tolist()))
+    conclusion = determine_conclusion(report, cv_subject_labels)
     report["conclusion"] = conclusion
 
     metrics_path = os.path.join(output_dir, "metrics.json")

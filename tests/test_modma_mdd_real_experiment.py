@@ -571,3 +571,24 @@ def test_total_feature_dimensions_144():
     feats, names = extract_features(X, sfreq=125.0, ch_names=ch_names)
     assert feats.shape[1] == 144
     assert len(names) == 144
+
+
+def test_bad_amp_uv_respected_as_single_candidate():
+    """--bad-amp-uv value must be the sole QC threshold, not overridden by [200,300,400]."""
+    import inspect
+    from modma_mdd_real_experiment import run_main_with_output_dir
+    src = inspect.getsource(run_main_with_output_dir)
+    assert "[200, 300, 400]" not in src
+    assert "200, 300, 400" not in src
+
+
+def test_riemannian_features_consistent_across_calls():
+    """Same input must produce identical riemannian features (no fit-dependent state)."""
+    from modma_mdd_real_experiment import compute_riemannian_features, build_region_indices
+    ch_names = [f"E{i}" for i in range(1, 129)]
+    region_idx = build_region_indices(ch_names)
+    X = np.random.RandomState(0).randn(4, 128, 500)
+    f1, n1 = compute_riemannian_features(X[:2], region_idx)
+    f2, n2 = compute_riemannian_features(X, region_idx)
+    # First 2 windows must be identical regardless of batch composition
+    np.testing.assert_array_equal(f1, f2[:2])
