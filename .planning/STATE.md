@@ -5,16 +5,15 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Fix QC parameters to retain enough subjects for MDD vs HC classification
-**Current focus:** Project complete (all 4 phases done)
+**Current focus:** Phase 5: Confirmatory replication with pre-registered pipeline
 
 ## Current Position
 
-Phase: 4 of 4 (Statistical Validation) -- COMPLETE
-Result: NEGATIVE — BA=0.613 (>0.60) but p=0.135 (>0.05)
-Status: Performance meets threshold but statistically not significant
-Last activity: 2026-02-22 — Phase 4 validation complete
+Phase: 5 of 5 (Confirmatory Replication) -- PLANNED
+Status: 2 plans ready (05-01, 05-02), verification passed
+Last activity: 2026-02-22 — Phase 5 planned and verified
 
-Progress: [██████████] 100%
+Progress: [████████░░] 80%
 
 ## Performance Metrics
 
@@ -59,7 +58,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-None — project complete.
+- Execute Phase 5 plans (05-01: pre-registration + adapter, 05-02: replication run)
 
 ### Blockers/Concerns
 
