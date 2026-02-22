@@ -343,7 +343,9 @@ def _alpha_asymmetry(alpha_power, ch_names, n_win):
     l_alpha = np.mean(alpha_power[:, left], axis=1)
     r_alpha = np.mean(alpha_power[:, right], axis=1)
     denom = r_alpha + l_alpha
-    return np.where(denom != 0, (r_alpha - l_alpha) / denom, 0.0)[:, np.newaxis]
+    result = np.zeros_like(denom)
+    np.divide(r_alpha - l_alpha, denom, out=result, where=denom != 0)
+    return result[:, np.newaxis]
 
 def compute_de_features(X, sfreq, region_idx):
     """Differential entropy per band per region: 0.5 * log(2*pi*e*var)."""
@@ -404,7 +406,8 @@ def compute_lateral_asymmetry(band_power, ch_names, n_win):
                 l_pow = np.mean(bp[:, left], axis=1)
                 r_pow = np.mean(bp[:, right], axis=1)
                 denom = r_pow + l_pow
-                asym = np.where(denom != 0, (r_pow - l_pow) / denom, 0.0)
+                asym = np.zeros_like(denom)
+                np.divide(r_pow - l_pow, denom, out=asym, where=denom != 0)
                 features.append(asym[:, np.newaxis])
             names.append(f"{region}_{band_name}_asym")
     return np.column_stack(features), names
