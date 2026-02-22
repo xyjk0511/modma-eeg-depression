@@ -311,7 +311,7 @@ def extract_features(X, sfreq, ch_names=None):
     nperseg = min(n_times, int(sfreq * 2))
     freqs, psd = welch(X, fs=sfreq, axis=2, nperseg=nperseg)
     total_power = np.sum(psd, axis=2)
-    fidx = region_idx["frontal"]
+    pidx = region_idx["parietal"]
 
     def _band_rel(region_indices, fmin, fmax):
         mask = (freqs >= fmin) & (freqs <= fmax)
@@ -320,8 +320,8 @@ def extract_features(X, sfreq, ch_names=None):
         return (bp / (tp + 1e-10))[:, np.newaxis]
 
     features = [
-        _band_rel(fidx, 4, 8),   # frontal theta rel
-        _band_rel(fidx, 8, 13),  # frontal alpha rel
+        _band_rel(pidx, 4, 8),   # parietal theta rel
+        _band_rel(pidx, 8, 13),  # parietal alpha rel
     ]
 
     # Alpha asymmetry frontal
@@ -329,11 +329,11 @@ def extract_features(X, sfreq, ch_names=None):
     alpha_power = np.mean(psd[:, :, alpha_mask], axis=2)
     features.append(_alpha_asymmetry(alpha_power, ch_names, n_win, "frontal"))
 
-    # Frontal Theta/Beta ratio
+    # Parietal Theta/Beta ratio
     theta_mask = (freqs >= 4) & (freqs <= 8)
     beta_mask = (freqs >= 13) & (freqs <= 30)
-    theta_p = np.mean(np.mean(psd[:, fidx][:, :, theta_mask], axis=2), axis=1, keepdims=True)
-    beta_p = np.mean(np.mean(psd[:, fidx][:, :, beta_mask], axis=2), axis=1, keepdims=True)
+    theta_p = np.mean(np.mean(psd[:, pidx][:, :, theta_mask], axis=2), axis=1, keepdims=True)
+    beta_p = np.mean(np.mean(psd[:, pidx][:, :, beta_mask], axis=2), axis=1, keepdims=True)
     features.append(theta_p / (beta_p + 1e-10))
 
     # Riemannian central-temporal
@@ -345,8 +345,8 @@ def extract_features(X, sfreq, ch_names=None):
     covs += 1e-6 * np.eye(2)[np.newaxis]
     features.append(np.log(np.abs(covs[:, 0, 1:2]) + 1e-10))
 
-    names = ["frontal_theta_rel", "frontal_alpha_rel", "alpha_asym_frontal",
-             "frontal_TBR", "riem_central_temporal"]
+    names = ["parietal_theta_rel", "parietal_alpha_rel", "alpha_asym_frontal",
+             "parietal_TBR", "riem_central_temporal"]
     return np.column_stack(features), names
 
 
