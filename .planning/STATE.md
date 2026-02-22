@@ -10,8 +10,8 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 ## Current Position
 
 Phase: 5 of 5 (Confirmatory Replication) -- IN PROGRESS
-Status: Plan 05-01 complete, 05-02 remaining
-Last activity: 2026-02-22 — Plan 05-01 executed (pre-registration + adapter)
+Status: Plan 05-02 Task 1 complete, paused at Task 2 checkpoint (human-verify)
+Last activity: 2026-02-22 — Plan 05-02 Task 1 committed (replication runner)
 
 Progress: [█████████░] 90%
 
@@ -63,7 +63,7 @@ Recent decisions affecting current work:
 
 ### Pending Todos
 
-- Execute Phase 5 plan 05-02: replication run (train MODMA, test TDBRAIN, report)
+- 05-02 Task 2 checkpoint: human downloads TDBRAIN, runs replication, Claude verifies output
 
 ### Blockers/Concerns
 
@@ -72,6 +72,6 @@ Recent decisions affecting current work:
 
 ## Session Continuity
 
-Last session: 2026-02-22 10:13
-Stopped at: Completed 05-01-PLAN.md (pre-registration + adapter)
+Last session: 2026-02-22 10:22
+Stopped at: 05-02 Task 1 committed, paused at Task 2 checkpoint (human-verify: download TDBRAIN)
 Resume file: .planning/phases/05-confirmatory-replication-with-pre-registered-pipeline/05-02-PLAN.md
