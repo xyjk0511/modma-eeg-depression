@@ -8,7 +8,7 @@ This project fixes the QC bottleneck that drops 80% of subjects (11/53 retained)
 
 - [x] **Phase 1: QC Repair** - Fix QC parameters and filtering to retain 35+ subjects with balanced MDD/HC groups
 - [x] **Phase 2: Preprocessing Upgrade** - .npz caching for fast iteration (pyprep deferred — current interpolation retains 43 subjects)
-- [ ] **Phase 3: Feature Reduction & Pipeline Optimization** - Reduce features from 139→29 dims, simplify pipeline, accelerate permutation test
+- [x] **Phase 3: Feature Reduction & Pipeline Optimization** - Reduce features from 139→29 dims, simplify pipeline, accelerate permutation test
 - [ ] **Phase 4: Statistical Validation** - Achieve BA>0.60 with permutation p<0.05
 
 ## Phase Details
@@ -57,7 +57,7 @@ Plans:
 
 Plans:
 - [x] 03-01-PLAN.md -- Rewrite extract_features to 29 dims + create run_simplified_cv
-- [ ] 03-02-PLAN.md -- Rewrite permutation loop + main entry for pre-extracted features
+- [x] 03-02-PLAN.md -- Rewrite permutation loop + main entry for pre-extracted features
 
 ### Phase 4: Statistical Validation
 **Goal**: Classification demonstrates statistically significant above-chance performance
@@ -78,5 +78,5 @@ Plans:
 |-------|----------------|--------|-----------|
 | 1. QC Repair | 2/2 | Complete | 2026-02-22 |
 | 2. Preprocessing Upgrade | 1/1 | Complete (pyprep deferred) | 2026-02-22 |
-| 3. Feature & Permutation Optimization | 1/2 | In Progress | - |
+| 3. Feature & Permutation Optimization | 2/2 | Complete | 2026-02-22 |
 | 4. Statistical Validation | 0/? | Not started | - |

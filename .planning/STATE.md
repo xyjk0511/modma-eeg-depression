@@ -5,30 +5,30 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** Fix QC parameters to retain enough subjects for MDD vs HC classification
-**Current focus:** Phase 3: Feature Reduction & Pipeline Optimization
+**Current focus:** Phase 4: Statistical Validation
 
 ## Current Position
 
-Phase: 3 of 4 (Feature Reduction & Pipeline Optimization) -- IN PROGRESS
-Plan: 1 of 2 complete (03-01 done, 03-02 next)
-Status: 29-dim extract_features + run_simplified_cv implemented
-Last activity: 2026-02-22 — Plan 03-01 executed
+Phase: 3 of 4 (Feature Reduction & Pipeline Optimization) -- COMPLETE
+Plan: 2 of 2 complete (03-01 done, 03-02 done)
+Status: Full simplified pipeline operational; permutation ~86% faster
+Last activity: 2026-02-22 — Plan 03-02 executed
 
-Progress: [██████░░░░] 55%
+Progress: [████████░░] 75%
 
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 3
-- Average duration: 7.7 min
-- Total execution time: 0.38 hours
+- Total plans completed: 4
+- Average duration: 6.8 min
+- Total execution time: 0.45 hours
 
 **By Phase:**
 
 | Phase | Plans | Total | Avg/Plan |
 |-------|-------|-------|----------|
 | 1-QC Repair | 2/2 | 17 min | 8.5 min |
-| 3-Feature Opt | 1/2 | 6 min | 6 min |
+| 3-Feature Opt | 2/2 | 10 min | 5 min |
 
 ## Accumulated Context
 
@@ -50,6 +50,9 @@ Recent decisions affecting current work:
 - 03-01: Inline Riemannian top-2 (3x3 cov central/temporal/parietal)
 - 03-01: Alpha asymmetry generalized with region param and 10-20 fallback
 
+- 03-02: Permutation loop calls run_simplified_cv per iteration (no re-extraction)
+- 03-02: Removed lenient_mask/bad_amp_candidates; fixed 200uV + dynamic_max_bad directly
+
 ### Pending Todos
 
 None yet.
@@ -61,6 +64,6 @@ None yet.
 
 ## Session Continuity
 
-Last session: 2026-02-22 07:05
-Stopped at: Completed 03-01-PLAN.md
-Resume file: .planning/phases/03-feature-permutation-opt/03-02-PLAN.md
+Last session: 2026-02-22 07:14
+Stopped at: Completed 03-02-PLAN.md (Phase 3 complete)
+Resume file: .planning/phases/04-statistical-validation/04-01-PLAN.md

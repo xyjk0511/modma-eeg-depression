@@ -24,7 +24,7 @@
 ### 架构优化
 
 - [ ] **ARCH-01**: EDF 加载后缓存为 .npz，后续迭代 <1s
-- [ ] **ARCH-02**: Permutation test 中特征只提取一次，不重复 1000 次
+- [x] **ARCH-02**: Permutation test 中特征只提取一次，不重复 1000 次
 
 ### 验证
 
@@ -72,7 +72,7 @@
 | PRE-02 | Phase 2 | Pending |
 | FEAT-01 | Phase 3 | Done (03-01) |
 | ARCH-01 | Phase 2 | Pending |
-| ARCH-02 | Phase 3 | Pending |
+| ARCH-02 | Phase 3 | Done (03-02) |
 | VAL-01 | Phase 4 | Pending |
 | VAL-02 | Phase 4 | Pending |
 | VAL-03 | Phase 1 | Done (01-02) |
