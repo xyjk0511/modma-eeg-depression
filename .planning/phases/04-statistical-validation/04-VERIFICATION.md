@@ -50,6 +50,25 @@ This is an **exploratory** result — the pipeline shows promise but cannot be d
 1. **Pre-register the fixed pipeline** (5-dim parietal + Logistic C=0.1) for a confirmatory replication on held-out or new data
 2. **Expand sample size** or use an external validation dataset before declaring the model "usable"
 
+## Reproduce
+
+```bash
+python modma_mdd_real_experiment.py \
+  --bids-root "d:/eeg/MODMA_EEG_BIDS_format/EEG_LZU_2015_2_resting state" \
+  --output-dir results_phase4_final \
+  --resample-sfreq 125 \
+  --n-permutations 1000 \
+  --seed 42 \
+  --min-windows-per-subject 3 \
+  --window-sec 10 \
+  --crop-duration 60 \
+  --bad-amp-uv 200 \
+  --highpass-freq 1.0 \
+  --n-jobs 4
+```
+
+Expected: `metrics.json` with `balanced_accuracy: 0.613`, `permutation_pvalue: 0.135`.
+
 ## Artifacts
 
 - `results_phase4_final/metrics.json` — full metrics with conclusion object

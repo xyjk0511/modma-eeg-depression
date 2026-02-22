@@ -6,3 +6,16 @@ __pycache__/
 854301_EEG_128Channels_Resting_Lanzhou_2015/
 854301_EEG_3Channels_Resting_Lanzhou_2015/
 MODMA_EEG_BIDS_format/
+
+# Experiment results (large, reproducible)
+results*/
+results_*/
+
+# Temporary/debug files
+err*.txt
+_tmp_*
+tmp_*/
+.coverage
+
+# Editor
+.vscode/
