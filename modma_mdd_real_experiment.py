@@ -98,7 +98,7 @@ def parse_args(argv=None):
     parser.add_argument("--output-dir", type=str, default="results", help="Output directory")
     parser.add_argument("--bad-amp-uv", type=float, default=200.0, help="Amplitude threshold in uV")
     parser.add_argument("--max-bad-channels", type=int, default=3, help="Max bad channels per window")
-    parser.add_argument("--highpass-freq", type=float, default=0.5, help="High-pass filter frequency in Hz")
+    parser.add_argument("--highpass-freq", type=float, default=1.0, help="High-pass filter frequency in Hz")
     parser.add_argument("--n-jobs", type=int, default=4, help="Parallel jobs for permutation test")
 
     return parser.parse_args(argv)
@@ -158,14 +158,16 @@ def generate_qc_report(participants_df, groups, keep_mask, no_edf_subjects, min_
     return pd.DataFrame(rows)
 
 
-def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_duration=60.0, highpass_freq=0.5):
+def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_duration=60.0, highpass_freq=0.5, bad_amp_uv=200.0):
     all_epochs = []
     labels = []
     groups = []
     no_edf_subjects = []
     ch_names = None
+    interp_info = {}
 
     label_map = {'MDD': 1, 'HC': 0}
+    thr_v = bad_amp_uv * 1e-6
 
     for _, row in participants_df.iterrows():
         sub_id = row['participant_id']
@@ -189,21 +191,49 @@ def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_du
             raw = mne.io.read_raw_edf(edf_path, preload=True, verbose=False)
             if ch_names is None:
                 ch_names = raw.info['ch_names']
+
+            # Set montage for 3D coordinates (required for interpolation)
+            montage = mne.channels.make_standard_montage("GSN-HydroCel-128")
+            raw.set_montage(montage, verbose=False)
+
             if raw.times[-1] > crop_duration:
                 raw.crop(tmin=0, tmax=crop_duration)
 
             with warnings.catch_warnings():
                 warnings.filterwarnings('ignore', category=RuntimeWarning)
                 raw.filter(l_freq=highpass_freq, h_freq=45.0, verbose=False)
+
+                # Detect bad channels on Raw data
+                data_raw = raw.get_data()
+                bad_mask = np.any(np.abs(data_raw) > thr_v, axis=1)
+                bad_chs = [raw.ch_names[i] for i in range(len(raw.ch_names)) if bad_mask[i]]
+
+                # Interpolate if <=25% bad
+                n_interpolated = 0
+                if 0 < len(bad_chs) <= int(len(raw.ch_names) * 0.25):
+                    raw.info['bads'] = bad_chs
+                    raw.interpolate_bads(reset_bads=True, verbose=False)
+                    n_interpolated = len(bad_chs)
+                interp_info[sub_id] = n_interpolated
+
+                # Average reference AFTER interpolation
                 raw.set_eeg_reference('average', verbose=False)
+
                 if raw.info['sfreq'] != resample_sfreq:
                     raw.resample(resample_sfreq, verbose=False)
 
             data = raw.get_data()
+            n_channels = data.shape[0]
             window_size = int(window_sec * raw.info['sfreq'])
 
-            for s in range(0, data.shape[1] - window_size + 1, window_size):
+            # Skip Window 0 (filter transient); per-window post-interpolation QC
+            for s in range(window_size, data.shape[1] - window_size + 1, window_size):
                 segment = data[:, s:s + window_size]
+                bad_ch_count = np.sum(np.any(np.abs(segment) > thr_v, axis=1))
+                if bad_ch_count > int(n_channels * 0.25):
+                    continue  # >25% bad channels, discard
+                if bad_ch_count > 0:
+                    continue  # any channel still exceeds threshold post-interpolation, discard
                 all_epochs.append(segment)
                 labels.append(label_map[group_label])
                 groups.append(sub_id)
@@ -211,7 +241,7 @@ def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_du
         except Exception as e:
             logger.error(f"处理 {sub_id} 时发生错误: {e}")
 
-    return np.array(all_epochs), np.array(labels), np.array(groups), no_edf_subjects, ch_names
+    return np.array(all_epochs), np.array(labels), np.array(groups), no_edf_subjects, ch_names, interp_info
 
 def extract_features(X, sfreq, ch_names=None):
     n_win, n_ch, n_times = X.shape
