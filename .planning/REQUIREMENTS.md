@@ -29,7 +29,7 @@
 ### 验证
 
 - [x] **VAL-01**: 分类 BA > 0.60
-- [ ] **VAL-02**: Permutation test p < 0.05
+- [x] **VAL-02**: Permutation test p < 0.05
 - [x] **VAL-03**: QC 报告显示 MDD/HC 两组保留率差异 < 20%
 
 ### 确认性复制 (Phase 5)
@@ -48,21 +48,21 @@
 
 ### P300 特征丰富化
 
-- [ ] **ERP-01**: 提取每通道 P300 峰值幅度（250–500ms 窗口内 max）
-- [ ] **ERP-02**: 提取每通道 P300 峰值潜伏期（argmax 对应时间点）
-- [ ] **ERP-03**: 提取每通道 P300 曲线下面积（np.trapezoid）
+- [x] **ERP-01**: 提取每通道 P300 峰值幅度（250–500ms 窗口内 max）
+- [x] **ERP-02**: 提取每通道 P300 峰值潜伏期（argmax 对应时间点）
+- [x] **ERP-03**: 提取每通道 P300 曲线下面积（np.trapezoid）
 - [ ] **ERP-04**: 绘制 grand-average ERP 验证 P300 窗口（250–500ms 内有正偏转）
 
 ### N200 成分
 
-- [ ] **ERP-05**: 提取每通道 N200 均值幅度（100–250ms 窗口）
-- [ ] **ERP-06**: 与 P300 特征在同一次文件加载中提取（不重复 epoch）
+- [x] **ERP-05**: 提取每通道 N200 均值幅度（100–250ms 窗口）
+- [x] **ERP-06**: 与 P300 特征在同一次文件加载中提取（不重复 epoch）
 
 ### 统计显著性验证
 
-- [ ] **ERP-07**: 实现 permutation_test_loso()，subject-level 标签置换（assert len(y)==n_subjects）
-- [ ] **ERP-08**: 1000 次置换，joblib.Parallel，固定 seed=42
-- [ ] **ERP-09**: 先在 hcue 单条件（BA=0.670）上验证置换逻辑正确性
+- [x] **ERP-07**: 实现 permutation_test_loso()，subject-level 标签置换（assert len(y)==n_subjects）
+- [x] **ERP-08**: 1000 次置换，joblib.Parallel，固定 seed=42
+- [x] **ERP-09**: 先在 hcue 单条件（BA=0.670）上验证置换逻辑正确性
 
 ### 多条件融合
 
@@ -90,7 +90,7 @@
 
 ### 特征重要性（FIMP）
 
-- [ ] **FIMP-01**: 从 LOSO 各折提取 LR coef_，通过 PCA 反投影（pca.components_.T @ coef_）到通道空间，输出 128 通道权重排名
+- [x] **FIMP-01**: 从 LOSO 各折提取 LR coef_，通过 PCA 反投影（pca.components_.T @ coef_）到通道空间，输出 128 通道权重排名
 
 ## v4.0 Requirements（延期）
 
@@ -111,22 +111,22 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| VAL-02 | Phase 14 (was Phase 8) | Pending |
-| ERP-01 | Phase 14 (was Phase 7) | Pending |
-| ERP-02 | Phase 14 (was Phase 7) | Pending |
-| ERP-03 | Phase 14 (was Phase 7) | Pending |
+| VAL-02 | Phase 8 | Complete |
+| ERP-01 | Phase 7 | Complete |
+| ERP-02 | Phase 7 | Complete |
+| ERP-03 | Phase 7 | Complete |
 | ERP-04 | Phase 15 | Pending |
-| ERP-05 | Phase 14 (was Phase 7) | Pending |
-| ERP-06 | Phase 14 (was Phase 7) | Pending |
-| ERP-07 | Phase 14 (was Phase 8) | Pending |
-| ERP-08 | Phase 14 (was Phase 8) | Pending |
-| ERP-09 | Phase 14 (was Phase 8) | Pending |
+| ERP-05 | Phase 7 | Complete |
+| ERP-06 | Phase 7 | Complete |
+| ERP-07 | Phase 8 | Complete |
+| ERP-08 | Phase 8 | Complete |
+| ERP-09 | Phase 8 | Complete |
 | ELEC-01 | Phase 10 | Complete |
 | ELEC-02 | Phase 10 | Complete |
 | ELEC-03 | Phase 10 | Complete |
 | TWIN-01 | Phase 11 | Complete |
 | TWIN-02 | Phase 11 | Complete |
-| FIMP-01 | Phase 14 (was Phase 12) | Pending |
+| FIMP-01 | Phase 12 | Complete |
 | PRE-02 | Phase 16 | Pending |
 | ARCH-01 | Phase 16 | Pending |
 
