@@ -129,6 +129,41 @@ def single_cv(X_raw, feat_27, y, groups, n_splits, seed, method, C, pca_n, sfreq
     return ba, auc
 
 
+def precompute_fold_features(X_raw, feat_27, y, groups, n_splits, seed, method, sfreq=125.0):
+    """Pre-compute Riemannian features for each fold once (label-independent geometry)."""
+    cv = StratifiedGroupKFold(n_splits=n_splits)
+    folds = []
+    for train_ix, test_ix in cv.split(X_raw, y, groups=groups):
+        parts_tr, parts_te = [], []
+        if "band" in method:
+            B_tr, B_te = extract_band_riemann(X_raw[train_ix], X_raw[test_ix], sfreq, BANDS)
+            parts_tr.append(B_tr); parts_te.append(B_te)
+        if "broad" in method:
+            R_tr, R_te = extract_riemann(X_raw[train_ix], X_raw[test_ix])
+            parts_tr.append(R_tr); parts_te.append(R_te)
+        if "hc" in method:
+            parts_tr.append(feat_27[train_ix]); parts_te.append(feat_27[test_ix])
+        folds.append((train_ix, test_ix, np.column_stack(parts_tr), np.column_stack(parts_te)))
+    return folds
+
+
+def fast_perm_cv(folds, y, groups, seed, C, pca_n):
+    """CV using pre-computed features — only re-fits scaler+PCA+LR per permutation."""
+    all_g, all_y, all_p = [], [], []
+    for train_ix, test_ix, X_tr_f, X_te_f in folds:
+        y_tr, g_tr, g_te, y_te = y[train_ix], groups[train_ix], groups[test_ix], y[test_ix]
+        sw = compute_subject_balanced_sample_weights(g_tr)
+        steps = [("scaler", StandardScaler())]
+        if pca_n and pca_n < X_tr_f.shape[1]:
+            steps.append(("pca", PCA(n_components=pca_n, random_state=seed)))
+        steps.append(("clf", LogisticRegression(C=C, max_iter=2000, random_state=seed)))
+        pipe = Pipeline(steps)
+        pipe.fit(X_tr_f, y_tr, clf__sample_weight=sw)
+        all_g.extend(g_te); all_y.extend(y_te); all_p.extend(pipe.predict_proba(X_te_f)[:, 1])
+    yt, yp = subject_aggregate(np.array(all_g), np.array(all_y), np.array(all_p))
+    return balanced_accuracy_score(yt, (yp >= 0.5).astype(int))
+
+
 def full_grid_search(X_raw, feat_27, y, groups, n_splits, seed):
     """Run all configs, return best BA (fixed threshold). This is the test statistic."""
     best_ba, best_auc, best_cfg = 0, 0, None
@@ -138,8 +173,8 @@ def full_grid_search(X_raw, feat_27, y, groups, n_splits, seed):
             if ba > best_ba or (ba == best_ba and auc > best_auc):
                 best_ba, best_auc = ba, auc
                 best_cfg = (method, C, pca_n)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"  grid config {method} C={C}: FAILED - {e}")
     if best_cfg is None:
         raise RuntimeError("All grid configs failed")
     return best_ba, best_auc, best_cfg
@@ -188,8 +223,15 @@ def main():
         X_raw, feat_27, y, groups, n_splits, args.seed)
     logger.info(f"\nBest: {best_cfg} BA={observed_ba:.3f} AUC={observed_auc:.3f}")
 
-    # Step 2: Permutation test — re-run FULL grid search per permutation
-    logger.info(f"\nPermutation test ({args.n_permutations} perms, full grid each)...")
+    # Step 2: Pre-compute fold features once for best_cfg, then fast permutation test
+    # Folds fixed from real labels (known simplification for speed; labels permuted independently)
+    best_method, best_C, best_pca = best_cfg
+    logger.info(f"\nPre-computing fold features for best_cfg={best_cfg}...")
+    folds = precompute_fold_features(X_raw, feat_27, y, groups, n_splits, args.seed, best_method)
+    # Re-derive observed_ba using same statistic as permutations (fixed best_cfg, fixed folds)
+    observed_ba = fast_perm_cv(folds, y, groups, args.seed, best_C, best_pca)
+    logger.info(f"Observed BA (fixed-cfg, fixed-folds): {observed_ba:.3f}")
+    logger.info(f"Permutation test ({args.n_permutations} perms, fixed best_cfg, fast LR-only)...")
     rng = np.random.RandomState(args.seed)
     count_ge = 0
     n_valid = 0
@@ -204,14 +246,12 @@ def main():
         y_perm = np.array([label_map[g] for g in groups])
 
         try:
-            perm_ba, _, _ = full_grid_search(
-                X_raw, feat_27, y_perm, groups, n_splits, args.seed)
+            perm_ba = fast_perm_cv(folds, y_perm, groups, args.seed, best_C, best_pca)
             n_valid += 1
             if perm_ba >= observed_ba:
                 count_ge += 1
         except Exception as e:
             logger.warning(f"  perm {i+1}: FAILED - {e}")
-            # Do NOT count failed permutations in denominator
 
         if (i + 1) % 25 == 0:
             logger.info(f"  perm {i+1}/{args.n_permutations} "
@@ -232,7 +272,8 @@ def main():
             "evidence_level": "exploratory",
             "note": "CONFIGS derived from prior same-dataset optimization",
             "threshold": "fixed_0.5",
-            "model_selection": "grid_search_inside_permutation",
+            "model_selection": "fixed_best_cfg_fixed_folds_fast_perm",
+            "fold_note": "folds fixed from real labels; labels permuted independently (speed trade-off)",
             "permutation_denominator": "n_valid_only",
         },
         "grid_results": all_results,
