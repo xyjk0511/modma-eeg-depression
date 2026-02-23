@@ -13,7 +13,7 @@ from joblib import Parallel, delayed
 from scipy.stats import ttest_ind, false_discovery_control
 
 import mne
-from sklearn.model_selection import LeaveOneOut
+from sklearn.model_selection import LeaveOneOut, LeaveOneGroupOut
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
@@ -534,6 +534,183 @@ def run_feature_importance():
     print(f"  Saved: {out_dir}/topomap_hcue_vs_bin.png", flush=True)
 
 
+def load_erp_features_extended():
+    """P300 + N200 mean amplitude per channel → (n_subjects, 256)."""
+    global CONDITION
+    CONDITION = "hcue"
+    raw_files = sorted(ERP_DIR.glob("*.raw"))
+    all_feat, all_labels, all_ids = [], [], []
+
+    for fpath in raw_files:
+        fname = fpath.name
+        if fname.startswith("0201"):
+            label = 1
+        elif fname.startswith("0202") or fname.startswith("0203"):
+            label = 0
+        else:
+            continue
+        m = re.match(r'(\d{8})', fname)
+        sub_id = m.group(1) if m else fname.split("erp")[0].strip().replace("_", "")
+        try:
+            raw = mne.io.read_raw_egi(str(fpath), preload=True, verbose=False)
+            raw.pick(raw.ch_names[:N_EEG_CH])
+            raw.filter(FMIN, FMAX, verbose=False)
+            events, event_id = mne.events_from_annotations(raw, verbose=False)
+            if CONDITION not in event_id:
+                del raw; gc.collect(); continue
+            cond_events = events[events[:, 2] == event_id[CONDITION]]
+            epochs = mne.Epochs(raw, cond_events, tmin=TMIN, tmax=TMAX,
+                                baseline=BASELINE, preload=True, verbose=False,
+                                reject=dict(eeg=150e-6))
+            data = epochs.get_data()
+            times = epochs.times
+            del raw, epochs; gc.collect()
+            if data.shape[0] < 10:
+                del data; continue
+            avg_erp = data.mean(axis=0)
+            p300_mask = (times >= P300_WIN[0]) & (times <= P300_WIN[1])
+            n200_mask = (times >= N200_WIN[0]) & (times <= N200_WIN[1])
+            feat = np.concatenate([
+                avg_erp[:, p300_mask].mean(axis=1),   # (128,)
+                avg_erp[:, n200_mask].mean(axis=1),   # (128,)
+            ])
+            del data, avg_erp
+            all_feat.append(feat)
+            all_labels.append(label)
+            all_ids.append(sub_id)
+        except Exception as e:
+            print(f"  Skip {fname}: {e}", flush=True)
+            gc.collect()
+
+    X = np.array(all_feat)
+    y = np.array(all_labels)
+    ids = np.array(all_ids)
+    print(f"Extended features: {X.shape}", flush=True)
+    return X, y, ids
+
+
+def _loso_ba_clf(X, y, clf):
+    """LOSO BA with arbitrary sklearn classifier (wrapped in scaler+pca pipeline)."""
+    n_comp = min(20, X.shape[1], X.shape[0] - 1)
+    pipe = Pipeline([
+        ("scaler", StandardScaler()),
+        ("pca",    PCA(n_components=n_comp)),
+        ("clf",    clf),
+    ])
+    loo = LeaveOneOut()
+    preds = []
+    for tr_idx, te_idx in loo.split(X):
+        pipe.fit(X[tr_idx], y[tr_idx])
+        preds.append(int(pipe.predict(X[te_idx])[0]))
+    return balanced_accuracy_score(y, preds)
+
+
+def run_classifier_comparison():
+    """Phase 14: compare LR / SVM / XGBoost on P300 and P300+N200 features."""
+    from sklearn.svm import SVC
+    from xgboost import XGBClassifier
+
+    print("\n" + "="*50)
+    print("Classifier Comparison (LOSO)")
+    print("="*50)
+
+    CONDITION = "hcue"
+    X_p300, y, _ = load_erp_features()
+    X_ext, _, _  = load_erp_features_extended()
+
+    clfs = [
+        ("LR",      LogisticRegression(C=1.0, max_iter=2000, class_weight="balanced")),
+        ("SVM-RBF", SVC(kernel="rbf", C=1.0, class_weight="balanced", probability=False)),
+        ("XGBoost", XGBClassifier(n_estimators=100, max_depth=3, learning_rate=0.1,
+                                  use_label_encoder=False, eval_metric="logloss",
+                                  verbosity=0, random_state=42)),
+    ]
+
+    print(f"\n{'Classifier':<12} {'P300(128)':<12} {'P300+N200(256)'}")
+    print("-" * 40)
+    for name, clf in clfs:
+        import copy
+        ba_p300 = _loso_ba_clf(X_p300, y, copy.deepcopy(clf))
+        ba_ext  = _loso_ba_clf(X_ext,  y, copy.deepcopy(clf))
+        print(f"{name:<12} {ba_p300:.3f}        {ba_ext:.3f}", flush=True)
+
+
+def load_single_trial_features():
+    """One feature vector per trial: mean P300 amplitude per channel.
+    Returns X (n_trials, 128), y (n_trials,), groups (n_trials,) subject index.
+    """
+    global CONDITION
+    CONDITION = "hcue"
+    raw_files = sorted(ERP_DIR.glob("*.raw"))
+    all_feat, all_labels, all_groups = [], [], []
+    sub_idx = 0
+
+    for fpath in raw_files:
+        fname = fpath.name
+        if fname.startswith("0201"):
+            label = 1
+        elif fname.startswith("0202") or fname.startswith("0203"):
+            label = 0
+        else:
+            continue
+        try:
+            raw = mne.io.read_raw_egi(str(fpath), preload=True, verbose=False)
+            raw.pick(raw.ch_names[:N_EEG_CH])
+            raw.filter(FMIN, FMAX, verbose=False)
+            events, event_id = mne.events_from_annotations(raw, verbose=False)
+            if CONDITION not in event_id:
+                del raw; gc.collect(); continue
+            cond_events = events[events[:, 2] == event_id[CONDITION]]
+            epochs = mne.Epochs(raw, cond_events, tmin=TMIN, tmax=TMAX,
+                                baseline=BASELINE, preload=True, verbose=False,
+                                reject=dict(eeg=150e-6))
+            data = epochs.get_data()   # (n_trials, 128, n_times)
+            times = epochs.times
+            del raw, epochs; gc.collect()
+            if data.shape[0] < 10:
+                del data; continue
+            p300_mask = (times >= P300_WIN[0]) & (times <= P300_WIN[1])
+            feats = data[:, :, p300_mask].mean(axis=2)  # (n_trials, 128)
+            n_trials = feats.shape[0]
+            all_feat.append(feats)
+            all_labels.extend([label] * n_trials)
+            all_groups.extend([sub_idx] * n_trials)
+            sub_idx += 1
+            del data
+        except Exception as e:
+            print(f"  Skip {fname}: {e}", flush=True)
+            gc.collect()
+
+    X = np.vstack(all_feat)
+    y = np.array(all_labels)
+    groups = np.array(all_groups)
+    print(f"Single-trial: {X.shape[0]} trials, {sub_idx} subjects", flush=True)
+    return X, y, groups
+
+
+def run_single_trial_analysis():
+    """Phase 13: single-trial LOSO classification."""
+    print("\n" + "="*50)
+    print("Single-Trial Classification (LeaveOneGroupOut)")
+    print("="*50)
+    X, y, groups = load_single_trial_features()
+
+    logo = LeaveOneGroupOut()
+    pipe = Pipeline([
+        ("scaler", StandardScaler()),
+        ("pca",    PCA(n_components=20)),
+        ("clf",    LogisticRegression(C=1.0, max_iter=2000, class_weight="balanced"))
+    ])
+    preds, trues = [], []
+    for tr_idx, te_idx in logo.split(X, y, groups):
+        pipe.fit(X[tr_idx], y[tr_idx])
+        preds.extend(pipe.predict(X[te_idx]).tolist())
+        trues.extend(y[te_idx].tolist())
+    ba = balanced_accuracy_score(trues, preds)
+    print(f"  BA={ba:.3f}  (n_trials={len(trues)})", flush=True)
+    return ba
+
+
 if __name__ == "__main__":
     # Phase 8: hcue single-condition + permutation test
     CONDITION = "hcue"
@@ -571,3 +748,9 @@ if __name__ == "__main__":
 
     # Phase 12: Feature Importance
     run_feature_importance()
+
+    # Phase 13: Single-Trial Classification
+    run_single_trial_analysis()
+
+    # Phase 14: Classifier Comparison (LR / SVM / XGBoost × P300 / P300+N200)
+    run_classifier_comparison()
