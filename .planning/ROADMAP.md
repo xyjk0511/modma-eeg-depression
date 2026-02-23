@@ -175,7 +175,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 11-01-PLAN.md — load_erp_timeseries + t-test curve (TWIN-01) + 50ms bin ablation (TWIN-02)
+- [x] 11-01-PLAN.md — load_erp_timeseries + t-test curve (TWIN-01) + 50ms bin ablation (TWIN-02)
 
 ### Phase 12: Feature Importance
 **Goal**: 将 LOSO 各折 LR coef_ 反投影到通道空间，输出可解释的 128 通道权重排名

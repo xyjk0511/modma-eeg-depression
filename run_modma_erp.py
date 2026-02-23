@@ -361,7 +361,7 @@ def plot_ttest_curve(avg_erps, times, y, out_dir):
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
-    parietal_idx = list(get_parietal_indices().values())
+    parietal_idx = list(dict.fromkeys(get_parietal_indices().values()))
     mask_time = (times >= 0.25) & (times <= 0.50)
     t_times = times[mask_time]
     erp_par = avg_erps[:, parietal_idx, :][:, :, mask_time].mean(axis=1)  # (N, n_t)

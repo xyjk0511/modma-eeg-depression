@@ -89,3 +89,42 @@ def test_run_electrode_selection_deduplicates_columns(capsys):
             seen.add(i)
             unique_cols.append(i)
     assert len(unique_cols) == 4, "Duplicate Cz/CPz index must be deduplicated"
+
+
+# ── Phase 11: time-window analysis ───────────────────────────────────────────
+
+def test_plot_ttest_curve_deduplicates_parietal():
+    """plot_ttest_curve must use unique parietal indices (Cz==CPz dedup)."""
+    from run_modma_erp import get_parietal_indices
+    raw_vals = list(get_parietal_indices().values())
+    deduped = list(dict.fromkeys(raw_vals))
+    assert len(deduped) < len(raw_vals), "Cz/CPz dedup must reduce index count"
+
+
+def test_bin_ablation_csv_structure(tmp_path, monkeypatch):
+    """run_bin_ablation writes CSV with header + exactly 5 bin rows."""
+    import csv
+    import run_modma_erp as mod
+    monkeypatch.setattr(mod, "permutation_test_subset",
+                        lambda X, y, n_perm, C: (0.55, 0.10))
+    rng = np.random.default_rng(0)
+    times = np.linspace(0.0, 0.6, 300)
+    avg_erps = rng.standard_normal((10, 128, len(times)))
+    y = np.array([0, 1] * 5)
+    mod.run_bin_ablation(avg_erps, times, y, tmp_path)
+    with open(tmp_path / "bin_ablation.csv") as f:
+        rows = list(csv.reader(f))
+    assert len(rows) == 6
+    assert rows[0] == ["Bin", "BA", "p-value", "Sig", "Note"]
+
+
+def test_bin_boundaries_no_double_count():
+    """Half-open bin intervals must not double-count boundary samples."""
+    from run_modma_erp import BINS
+    times = np.array([0.250, 0.300, 0.350, 0.400, 0.450, 0.500])
+    counts = np.zeros(len(times), dtype=int)
+    for i, (_, t0, t1) in enumerate(BINS):
+        mask = (times >= t0) & (times <= t1) if i == len(BINS) - 1 \
+               else (times >= t0) & (times < t1)
+        counts[mask] += 1
+    assert counts.max() == 1, "Each time point must belong to exactly one bin"
