@@ -121,6 +121,68 @@ def load_erp_features():
     return X, y, ids
 
 
+def load_erp_timeseries(condition="hcue"):
+    """One avg-ERP timeseries per subject; also returns P300 feature vector."""
+    global CONDITION
+    CONDITION = condition
+    raw_files = sorted(ERP_DIR.glob("*.raw"))
+    all_feat, all_erps, all_labels, all_ids = [], [], [], []
+    times_ref = None
+
+    for fpath in raw_files:
+        fname = fpath.name
+        if fname.startswith("0201"):
+            label = 1
+        elif fname.startswith("0202") or fname.startswith("0203"):
+            label = 0
+        else:
+            continue
+
+        m = re.match(r'(\d{8})', fname)
+        sub_id = m.group(1) if m else fname.split("erp")[0].strip().replace("_", "")
+
+        try:
+            raw = mne.io.read_raw_egi(str(fpath), preload=True, verbose=False)
+            raw.pick(raw.ch_names[:N_EEG_CH])
+            raw.filter(FMIN, FMAX, verbose=False)
+
+            events, event_id = mne.events_from_annotations(raw, verbose=False)
+            if CONDITION not in event_id:
+                del raw; gc.collect(); continue
+
+            cond_events = events[events[:, 2] == event_id[CONDITION]]
+            epochs = mne.Epochs(
+                raw, cond_events, tmin=TMIN, tmax=TMAX,
+                baseline=BASELINE, preload=True, verbose=False,
+                reject=dict(eeg=150e-6)
+            )
+            data = epochs.get_data()   # (n_trials, 128, n_times)
+            if times_ref is None:
+                times_ref = epochs.times.copy()
+            del raw, epochs; gc.collect()
+
+            if data.shape[0] < 10:
+                del data; continue
+
+            avg_erp = data.mean(axis=0)   # (128, n_times)
+            assert avg_erp.shape[1] == len(times_ref), "times mismatch"
+            p300_mask = (times_ref >= P300_WIN[0]) & (times_ref <= P300_WIN[1])
+            feat = avg_erp[:, p300_mask].mean(axis=1)
+            del data
+
+            all_feat.append(feat)
+            all_erps.append(avg_erp)
+            all_labels.append(label)
+            all_ids.append(sub_id)
+
+        except Exception as e:
+            print(f"  Skip {fname}: {e}", flush=True)
+            gc.collect()
+
+    return (np.array(all_feat), np.array(all_erps),
+            times_ref, np.array(all_labels), np.array(all_ids))
+
+
 def load_erp_features_dict(condition):
     """Load features as dict[sub_id -> (feat, label)] for multi-condition fusion."""
     global CONDITION
@@ -138,14 +200,14 @@ def fuse_conditions(cond_dicts):
     return X, y, ids
 
 
-def _loso_ba_subset(X, y):
+def _loso_ba_subset(X, y, C=1.0):
     """LOSO BA for low-dim subsets; PCA n_components capped at feature count."""
     nc = min(X.shape[1], len(y) - 1)
     loo = LeaveOneOut()
     pipe = Pipeline([
         ("scaler", StandardScaler()),
         ("pca",    PCA(n_components=nc)),
-        ("clf",    LogisticRegression(C=1.0, max_iter=2000, class_weight="balanced"))
+        ("clf",    LogisticRegression(C=C, max_iter=2000, class_weight="balanced"))
     ])
     preds = []
     for tr_idx, te_idx in loo.split(X):
@@ -154,15 +216,15 @@ def _loso_ba_subset(X, y):
     return balanced_accuracy_score(y, preds)
 
 
-def permutation_test_subset(X, y, n_perm=1000, seed=42):
+def permutation_test_subset(X, y, n_perm=1000, seed=42, C=1.0):
     """Permutation test using _loso_ba_subset."""
     assert len(y) == X.shape[0]
     rng = np.random.default_rng(seed)
-    obs_ba = _loso_ba_subset(X, y)
+    obs_ba = _loso_ba_subset(X, y, C=C)
     seeds = rng.integers(0, 2**31, size=n_perm)
 
     def one_perm(s):
-        return _loso_ba_subset(X, np.random.default_rng(s).permutation(y))
+        return _loso_ba_subset(X, np.random.default_rng(s).permutation(y), C=C)
 
     print(f"Running {n_perm} permutations (n_jobs=4)...", flush=True)
     perm_bas = Parallel(n_jobs=4)(delayed(one_perm)(s) for s in seeds)
