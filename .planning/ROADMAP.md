@@ -17,7 +17,7 @@ This project fixes the QC bottleneck that drops 80% of subjects (11/53 retained)
 - [x] **Phase 9: Multi-Condition Fusion + Contrast Features** - 融合三条件特征，BA > 0.70，p < 0.05
 - [x] **Phase 10: Electrode Selection** - 识别 EGI 顶叶通道索引，验证 3-dim 和 5-dim 顶叶子集分类器 (completed 2026-02-23)
 - [x] **Phase 11: Time-Window Analysis** - 逐时间点 t-test 描述性分析 + 50ms bins 消融分类 (completed 2026-02-23)
-- [ ] **Phase 12: Feature Importance** - LR coef_ 反投影到通道空间，输出 128 通道权重排名
+- [x] **Phase 12: Feature Importance** - LR coef_ 反投影到通道空间，输出 128 通道权重排名 (completed 2026-02-23)
 
 ## Phase Details
 
@@ -205,4 +205,4 @@ Plans:
 | 9. Multi-Condition Fusion | 1/1 | Complete | 2026-02-23 |
 | 10. Electrode Selection | 1/1 | Complete    | 2026-02-23 |
 | 11. Time-Window Analysis | 1/1 | Complete    | 2026-02-23 |
-| 12. Feature Importance | 1/1 | Complete (hcue top=E55 w=0.728, bin250 top=E55 w=0.303) | 2026-02-23 |
+| 12. Feature Importance | 1/1 | Complete    | 2026-02-23 |
