@@ -19,7 +19,7 @@ This project fixes the QC bottleneck that drops 80% of subjects (11/53 retained)
 - [x] **Phase 11: Time-Window Analysis** - 逐时间点 t-test 描述性分析 + 50ms bins 消融分类 (completed 2026-02-23)
 - [x] **Phase 12: Feature Importance** - LR coef_ 反投影到通道空间，输出 128 通道权重排名
 - [ ] **Phase 13: Resting-State EEG Classification** - 用MODMA静息态EEG（128通道，5分钟/人）提取频段功率特征，LOSO分类MDD vs HC，与ERP结果对比 (completed 2026-02-23)
-- [ ] **Phase 14: Verification & Requirements Cleanup** - 补齐 Phase 02/05/07/13 的 VERIFICATION.md，修复 10 个过期复选框
+- [x] **Phase 14: Verification & Requirements Cleanup** - 补齐 Phase 02/05/07/13 的 VERIFICATION.md，修复 10 个过期复选框
 - [ ] **Phase 15: Grand-Average ERP Plot** - 实现 ERP-04：绘制 grand-average ERP 验证 P300 窗口（250–500ms 正偏转）
 - [ ] **Phase 16: Preprocessing Deferred Items** - 实现 PRE-02 (pyprep) 和 ARCH-01 (.npz cache)
 
@@ -219,7 +219,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 14-01-PLAN.md — Write VERIFICATION.md for 4 phases + fix stale checkboxes
+- [x] 14-01-PLAN.md — Write VERIFICATION.md for 4 phases + fix stale checkboxes
 
 ### Phase 15: Grand-Average ERP Plot
 **Goal**: 绘制 grand-average ERP 波形图，验证 P300 窗口（250–500ms 正偏转）
@@ -266,6 +266,6 @@ Plans:
 | 11. Time-Window Analysis | 1/1 | Complete    | 2026-02-23 |
 | 12. Feature Importance | 1/1 | Complete    | 2026-02-23 |
 | 13. Resting-State EEG Classification | 0/1 | Pending | - |
-| 14. Verification & Requirements Cleanup | 0/1 | Pending | - |
+| 14. Verification & Requirements Cleanup | 1/1 | Complete | 2026-02-23 |
 | 15. Grand-Average ERP Plot | 0/1 | Pending | - |
 | 16. Preprocessing Deferred Items | 0/1 | Pending | - |
