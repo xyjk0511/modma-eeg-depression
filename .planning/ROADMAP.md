@@ -156,5 +156,5 @@ Plans:
 | 5. Confirmatory Replication | 2/2 | Complete (negative: BA=0.500) | 2026-02-22 |
 | 6. Feature Expansion | 2/2 | Complete (negative: BA=0.500) | 2026-02-22 |
 | 7. P300 Feature Enrichment + N200 | 0/1 | Pending | — |
-| 8. Permutation Test Validation | 1/1 | Complete (p=0.021) | 2026-02-23 |
+| 8. Permutation Test Validation | 1/1 | Complete    | 2026-02-23 |
 | 9. Multi-Condition Fusion | 0/1 | Pending | — |
