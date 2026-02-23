@@ -5,16 +5,27 @@
 See: .planning/PROJECT.md (updated 2026-02-22)
 
 **Core value:** ERP 任务态特征（P300/N200）+ 多条件融合，实现统计显著的 MDD vs HC 分类
-**Current focus:** Phase 7 — P300 特征丰富化 + N200 成分提取
+**Current focus:** v2.0 里程碑完成
 
 ## Current Position
 
-Phase: 7 (ready to plan)
+Phase: 9 (complete)
 Plan: —
-Status: Requirements + Roadmap 已定义，等待 /gsd:plan-phase 7
-Last activity: 2026-02-23 — v2.0 里程碑 requirements + roadmap 完成
+Status: ALL PHASES COMPLETE
+Last activity: 2026-02-23 — Phase 7-9 全部完成
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [██████████] 100%
+
+## v2.0 Final Results
+
+| 实验 | N | BA | AUC | p-value | 结论 |
+|------|---|-----|-----|---------|------|
+| hcue 单条件 (128-dim) | 52 | 0.670 | 0.670 | 0.021 | ✓ 显著 |
+| 三条件融合 (384-dim) | 51 | 0.521 | 0.508 | 0.411 | ✗ 负结果 |
+| 对比 scue−hcue (128-dim) | 52 | 0.521 | 0.438 | 0.383 | ✗ 负结果 |
+
+**结论：** hcue P300 均值幅度（128-dim）是最强信号，BA=0.670, p=0.021（统计显著）。
+多条件融合引入噪声，性能下降至接近随机水平。
 
 ## Performance Metrics
 
