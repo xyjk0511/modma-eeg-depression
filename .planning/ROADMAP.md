@@ -216,7 +216,7 @@ Plans:
   1. Phase 02, 05, 07, 13 各有 VERIFICATION.md
   2. REQUIREMENTS.md 中 10 个过期复选框已勾选
   3. Traceability 表更新
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
 - [ ] 14-01-PLAN.md — Write VERIFICATION.md for 4 phases + fix stale checkboxes
