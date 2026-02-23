@@ -172,10 +172,10 @@ Plans:
   1. t-stat vs time 图覆盖 250-500ms，MDD vs HC 组间差异可视化，标注峰值时间点
   2. 5 个 50ms bins（250-300/300-350/350-400/400-450/450-500ms）各自输出 128-dim LOSO BA
   3. 消融结果表格打印，最高 BA 的 bin 标注
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 11-01-PLAN.md — TBD
+- [ ] 11-01-PLAN.md — load_erp_timeseries + t-test curve (TWIN-01) + 50ms bin ablation (TWIN-02)
 
 ### Phase 12: Feature Importance
 **Goal**: 将 LOSO 各折 LR coef_ 反投影到通道空间，输出可解释的 128 通道权重排名
