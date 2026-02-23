@@ -7,6 +7,7 @@ Reference: Li et al. 2018, CMPB — ERP waveform shape features for MDD classifi
 Usage: python run_modma_erp.py
 """
 import os, gc, re, csv, warnings, numpy as np
+import pandas as pd
 from pathlib import Path
 from joblib import Parallel, delayed
 from scipy.stats import ttest_ind, false_discovery_control
@@ -443,6 +444,96 @@ def run_time_window_analysis():
     run_bin_ablation(avg_erps, times, y, out_dir)
 
 
+def _loso_collect_coefs(X, y, n_components=20, C=1.0):
+    """LOSO returning per-fold back-projected channel weights (n_folds, 128)."""
+    loo = LeaveOneOut()
+    fold_weights = []
+    for tr_idx, _ in loo.split(X):
+        scaler = StandardScaler()
+        pca = PCA(n_components=n_components)
+        clf = LogisticRegression(C=C, max_iter=2000, class_weight="balanced")
+        X_pca = pca.fit_transform(scaler.fit_transform(X[tr_idx]))
+        clf.fit(X_pca, y[tr_idx])
+        fold_weights.append(pca.components_.T @ clf.coef_[0])  # (128,)
+    return np.array(fold_weights)  # (n_folds, 128)
+
+
+def run_feature_importance():
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    print("\n" + "="*50, flush=True)
+    print("Phase 12: Feature Importance", flush=True)
+    print("="*50, flush=True)
+
+    out_dir = Path("out_phase12")
+    out_dir.mkdir(exist_ok=True)
+
+    # Load hcue full-window features
+    global CONDITION
+    CONDITION = "hcue"
+    X_hcue, y, _ = load_erp_features()
+
+    # Load bin250 features (250-300ms mean per channel)
+    _, avg_erps, times, y_ts, _ = load_erp_timeseries(condition="hcue")
+    mask = (times >= 0.250) & (times < 0.300)
+    X_bin250 = avg_erps[:, :, mask].mean(axis=2)  # (n_subjects, 128)
+
+    # Build MNE Info once
+    montage = mne.channels.make_standard_montage("GSN-HydroCel-128")
+    info = mne.create_info(montage.ch_names[:128], sfreq=1000, ch_types="eeg")
+    info.set_montage(montage)
+    ch_names = montage.ch_names[:128]
+
+    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
+
+    for idx, (label, C_val, X_model, y_model) in enumerate([
+            ("hcue", 1.0, X_hcue, y),
+            ("bin250", 0.1, X_bin250, y_ts)]):
+
+        print(f"\nCollecting LOSO coefs for {label} (C={C_val})...", flush=True)
+        fold_weights = _loso_collect_coefs(X_model, y_model, n_components=20, C=C_val)
+        avg_weights = fold_weights.mean(axis=0)
+        avg_abs = np.abs(fold_weights).mean(axis=0)
+        rank_idx = np.argsort(avg_abs)[::-1]
+
+        # Print top-10 table
+        print(f"\nFeature Importance: {label}", flush=True)
+        print(f"{'Rank':>4}  {'Channel':<10}  {'Avg|weight|':>11}  {'Sign':<6}", flush=True)
+        print("-" * 38, flush=True)
+        rows = []
+        for i in range(128):
+            ri = rank_idx[i]
+            sign = "MDD+" if avg_weights[ri] > 0 else "HC+"
+            rows.append({"rank": i+1, "channel": ch_names[ri],
+                         "avg_abs_weight": float(avg_abs[ri]),
+                         "avg_weight": float(avg_weights[ri]),
+                         "sign": sign})
+            if i < 10:
+                print(f"{i+1:>4}  {ch_names[ri]:<10}  {avg_abs[ri]:>11.6f}  {sign:<6}", flush=True)
+
+        # Save CSV
+        csv_path = out_dir / f"feature_importance_{label}.csv"
+        pd.DataFrame(rows).to_csv(csv_path, index=False)
+        print(f"  Saved: {csv_path}", flush=True)
+
+        # Topomap
+        names_list = [""] * 128
+        for i in range(5):
+            names_list[rank_idx[i]] = ch_names[rank_idx[i]]
+        vmax = float(np.abs(avg_weights).max())
+        im, _ = mne.viz.plot_topomap(avg_weights, info, cmap="RdBu_r",
+                                     vlim=(-vmax, vmax), names=names_list,
+                                     axes=axes[idx], show=False)
+        axes[idx].set_title(f"Feature Importance: {label}")
+        plt.colorbar(im, ax=axes[idx], shrink=0.7)
+
+    fig.savefig(out_dir / "topomap_hcue_vs_bin.png", dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved: {out_dir}/topomap_hcue_vs_bin.png", flush=True)
+
+
 if __name__ == "__main__":
     # Phase 8: hcue single-condition + permutation test
     CONDITION = "hcue"
@@ -477,3 +568,6 @@ if __name__ == "__main__":
 
     # Phase 11: Time-Window Analysis
     run_time_window_analysis()
+
+    # Phase 12: Feature Importance
+    run_feature_importance()
