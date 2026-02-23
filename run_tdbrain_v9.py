@@ -223,15 +223,15 @@ def main():
         X_raw, feat_27, y, groups, n_splits, args.seed)
     logger.info(f"\nBest: {best_cfg} BA={observed_ba:.3f} AUC={observed_auc:.3f}")
 
-    # Step 2: Pre-compute fold features once for best_cfg, then fast permutation test
-    # Folds fixed from real labels (known simplification for speed; labels permuted independently)
-    best_method, best_C, best_pca = best_cfg
-    logger.info(f"\nPre-computing fold features for best_cfg={best_cfg}...")
-    folds = precompute_fold_features(X_raw, feat_27, y, groups, n_splits, args.seed, best_method)
-    # Re-derive observed_ba using same statistic as permutations (fixed best_cfg, fixed folds)
-    observed_ba = fast_perm_cv(folds, y, groups, args.seed, best_C, best_pca)
-    logger.info(f"Observed BA (fixed-cfg, fixed-folds): {observed_ba:.3f}")
-    logger.info(f"Permutation test ({args.n_permutations} perms, fixed best_cfg, fast LR-only)...")
+    # Step 2: Pre-compute fold features for ALL configs (folds fixed from real labels)
+    logger.info("\nPre-computing fold features for all configs...")
+    all_folds = {cfg: precompute_fold_features(X_raw, feat_27, y, groups, n_splits, args.seed, cfg[0])
+                 for cfg in CONFIGS}
+    # Observed statistic: max BA across all configs — same statistic used in permutations
+    observed_ba = max(fast_perm_cv(all_folds[cfg], y, groups, args.seed, cfg[1], cfg[2])
+                      for cfg in CONFIGS)
+    logger.info(f"Observed BA (max-of-configs, fixed-folds): {observed_ba:.3f}")
+    logger.info(f"Permutation test ({args.n_permutations} perms, max-of-configs, fast LR-only)...")
     rng = np.random.RandomState(args.seed)
     count_ge = 0
     n_valid = 0
@@ -246,7 +246,8 @@ def main():
         y_perm = np.array([label_map[g] for g in groups])
 
         try:
-            perm_ba = fast_perm_cv(folds, y_perm, groups, args.seed, best_C, best_pca)
+            perm_ba = max(fast_perm_cv(all_folds[cfg], y_perm, groups, args.seed, cfg[1], cfg[2])
+                          for cfg in CONFIGS)
             n_valid += 1
             if perm_ba >= observed_ba:
                 count_ge += 1
@@ -272,8 +273,8 @@ def main():
             "evidence_level": "exploratory",
             "note": "CONFIGS derived from prior same-dataset optimization",
             "threshold": "fixed_0.5",
-            "model_selection": "fixed_best_cfg_fixed_folds_fast_perm",
-            "fold_note": "folds fixed from real labels; labels permuted independently (speed trade-off)",
+            "model_selection": "max_of_configs_fixed_folds_fast_perm",
+            "fold_note": "folds fixed from real labels; max-of-configs statistic consistent across observed and permuted",
             "permutation_denominator": "n_valid_only",
         },
         "grid_results": all_results,
@@ -282,6 +283,7 @@ def main():
         "observed_ba": round(observed_ba, 4),
         "observed_auc": round(observed_auc, 4),
         "p_value": round(p_val, 4) if p_val is not None else None,
+        "p_value_raw": p_val,
         "n_permutations_requested": args.n_permutations,
         "n_permutations_valid": n_valid,
         "count_ge": count_ge,
