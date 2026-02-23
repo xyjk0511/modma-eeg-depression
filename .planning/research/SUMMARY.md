@@ -1,156 +1,151 @@
 # Project Research Summary
 
-**Project:** MODMA ERP Task-State MDD Classification — v2.0 Milestone
-**Domain:** ERP-based MDD vs HC binary classification (dot-probe, 128-channel EGI, LOSO)
-**Researched:** 2026-02-22 / 2026-02-23
+**Project:** ERP Task-State MDD Classification — v3.0 ERP Deep Analysis
+**Domain:** EEG/ERP biomarker research, MDD vs HC binary classification (MODMA dot-probe, N=52)
+**Researched:** 2026-02-23
 **Confidence:** HIGH
-
----
 
 ## Executive Summary
 
-The v2.0 milestone extends the existing run_modma_erp.py baseline (BA=0.670, hcue P300 mean amplitude, 128 dims, PCA(20), LOSO) by enriching P300 features, adding N200, fusing all three dot-probe conditions, and validating with a permutation test. The literature is clear: MDD shows reduced P300 amplitude, longer P300 latency, and altered N200 for emotional stimuli. Multi-condition fusion (hcue + fcue + scue) is the highest-value addition — ACM 2024 reports 79.84% accuracy when all ERP components and conditions are combined. The recommended feature set is P300 mean + peak + latency per channel, N200 mean per channel, and a scue-hcue contrast vector, all extractable with NumPy from existing avg-ERP arrays.
+This is a scientific EEG/ERP analysis pipeline built on a validated v2.0 baseline (BA=0.670, p=0.021 on hcue P300 mean amplitude, 128-dim, LOSO). The v3.0 milestone is not about improving classification accuracy through more features — v2.0 proved that adding features (640-dim Phase 7, 384-dim Phase 9) consistently degrades performance due to the curse of dimensionality at N=52. The v3.0 goal is dimensionality reduction via electrode selection and scientific interpretation of what drives the existing BA=0.670 result.
 
-Zero new library installs are required. Every capability needed (epoching, feature extraction, permutation testing) is already present in MNE 1.11.0, NumPy 2.4.2, scikit-learn 1.8.0, and joblib 1.5.3. The architecture is purely additive: extend load_erp_features() to return richer features and a sub_id-keyed dict, add a fusion block in __main__, and add permutation_test_loso(). The existing run_loso() Pipeline (StandardScaler -> PCA(20) -> LogisticRegression) requires no changes.
+The recommended approach is a strict build order dictated by data dependencies: (1) extend `load_erp_features()` with LPP window and verify BA does not regress, (2) add time-window t-test as standalone descriptive analysis, (3) add electrode selection to reduce 128 channels to a parietal ROI (Pz/P3/P4), (4) add feature importance via SVM weights back-projected through PCA. All new analysis branches feed into the unchanged `run_loso()` and `permutation_test_loso()` functions — these are locked and must not be modified. Zero new library installs are required.
 
-The dominant risk is dimensionality explosion from multi-condition concatenation. Naive hstack of 3 conditions x 512 features = 1536 dims for N~50 subjects will overfit. PCA(20) inside the existing Pipeline is the mitigation. The second risk is permutation test validity: the test must permute subject-level labels (len(y) == n_subjects), not trial-level labels. Both risks have straightforward, low-cost fixes already identified.
-
----
+The dominant risk is data leakage in three forms: electrode selection on the full dataset before LOSO, time-window t-test results feeding back into the LOSO feature window, and feature importance weights reported in PCA component space rather than channel space. The mitigation is strict separation: use literature-defined windows and channel sets for classification; report data-driven analyses (t-test, importance) as descriptive only.
 
 ## Key Findings
 
 ### Recommended Stack
 
-No new installs needed. Use np.trapezoid (not np.trapz) for area-under-curve in NumPy 2.x. Use NumPy windowed argmax/argmin directly on evoked.get_data() — mne.Evoked.get_peak() returns one channel-time pair, not per-channel vectors. Keep the manual joblib permutation loop; sklearn.permutation_test_score with LeaveOneOut does not support subject-level BA aggregation.
+The existing stack (MNE 1.11.0, NumPy 2.4.2, SciPy 1.17.0, scikit-learn 1.8.0, joblib 1.5.3) covers 100% of v3.0 requirements. No new installs are needed.
 
 **Core technologies:**
-- MNE 1.11.0: ERP epoching, baseline correction, avg-ERP per subject — already used
-- NumPy 2.4.2: P300/N200 window masking, mean/peak/latency/area extraction, condition hstack
-- scikit-learn 1.8.0: LOSO Pipeline with StandardScaler -> PCA(20) -> LogisticRegression — unchanged
-- joblib 1.5.3: Parallel permutation test loop — reuse pattern from resting-state pipeline
+- MNE 1.11.0: ERP epoching, baseline correction, evoked averaging — already in use
+- NumPy 2.4.2: windowed mean amplitude extraction, array concatenation — already in use
+- SciPy 1.17.0: `ttest_ind` for time-window and electrode t-tests — already installed
+- scikit-learn 1.8.0: `LinearSVC`, `permutation_importance`, `f_classif` — already installed
+- joblib 1.5.3: parallel permutation testing — already in use
 
-Do not add: autoreject (calibrated for resting-state windows, not ERP epochs), pyriemann (resting-state covariance features), neurokit2 (NumPy handles peak detection), deep learning (N=52 insufficient).
+**Critical config change (not a library change):** `TMAX` must be extended from 0.5 to 0.8 to accommodate the LPP window (500-800ms). Must assert `times[-1] >= 0.8` before extracting LPP features.
 
 ### Expected Features
 
-**Must have (P1):**
-- P300 peak amplitude per channel (250-500ms, win.max(axis=1)) — most replicated MDD biomarker
-- P300 peak latency per channel (times[mask][win.argmax(axis=1)]) — MDD shows longer latency
-- P300 area under curve per channel (np.trapezoid) — robust to noise
-- N200 mean amplitude per channel (100-250ms) — early attentional bias marker
-- Multi-condition concatenation (hcue + fcue + scue) — captures sad-cue hypersensitivity and happy-cue blunting
-- Condition contrast scue - hcue — direct asymmetric emotional bias biomarker; free once multi-condition done
+**Must have (table stakes for v3.0):**
+- Electrode subset selection (Pz/P3/P4 parietal ROI) — P300 is maximal at parietal sites; reduces 128-dim to 3-dim, directly addressing the dimensionality root cause
+- Time-window t-test (per 4ms bin, 250-500ms) — standard in ERP clinical literature; identifies which milliseconds are discriminative
+- LR coef_ interpretation across LOSO folds — zero implementation cost; maps which channels drive BA=0.670
 
-**Should have (P2 — after P1 validated):**
-- ROI-averaged features at Fz/Cz/Pz — reduces 128 dims to ~5-10 with domain knowledge
-- N200 peak amplitude per channel (win.min(axis=1))
-- P300 topographic gradient (frontal/parietal ratio) — ~3 dims
-- fcue - hcue contrast
+**Should have (differentiators):**
+- Parietal-only classifier (3-dim: Pz/P3/P4 mean) — if BA >= 0.670 with 3 channels, result is clinically interpretable and publishable
+- Time-window ablation (50ms bins) — classifier-based evidence for peak discriminative window
+- Permutation importance (model-agnostic) — corrects for correlated features where raw coef_ misleads
 
-**Defer (v2+):**
-- Single-trial variability — requires keeping raw trial data in memory; architectural change
-- Fusion with resting-state features — out of scope
+**Defer to v3.2+:**
+- LPP 500-800ms full 128-channel — medrxiv 2020 found no evidence for reduced LPP in MDD; low prior probability
+- N200 parietal 6-dim — only worth testing if 3-dim parietal P300 achieves BA >= 0.670 first
+- Multi-condition fusion — Phase 9 confirmed this degrades performance (BA=0.521)
 
 ### Architecture Approach
 
-Additive extension of run_modma_erp.py. Build order: (1) extend load_erp_features(condition) to return richer P300 + N200 features keyed by sub_id; (2) add permutation_test_loso() and validate on single-condition first; (3) add fusion block in __main__ that intersects sub_ids and hstacks. Extract to erp_features.py / erp_evaluate.py only if the file exceeds ~300 lines.
+Single-file pipeline (`run_modma_erp.py`) with a strict layered structure. All v3.0 additions are either modifications to `load_erp_features()` or new standalone functions. The classification and evaluation layers (`run_loso`, `permutation_test_loso`) are locked.
 
 **Major components:**
-1. load_erp_features(condition) — MNE I/O + epoching + avg-ERP + feature extraction; returns dict[sub_id -> (feat_vec, label)]
-2. Fusion block (inline __main__) — intersect sub_ids across 3 conditions, np.hstack, build aligned X and y
-3. permutation_test_loso(X, y, ids, pipe, n_perm=1000) — shuffle subject labels, re-run LOSO, compute p-value; features loaded once outside loop
-4. run_loso() — unchanged; sklearn Pipeline handles StandardScaler + PCA(20) + LR inside each fold
+1. `load_erp_features()` (modified) — extend to return 384-dim (P300+N200+LPP mean per channel) and `avg_erps` array
+2. `select_electrodes(X, y, k)` (new) — rank 128 channels by univariate t-stat, return top-k indices
+3. `time_window_ttest(avg_erps, y, times)` (new) — MDD vs HC t-stat at each time point, descriptive only
+4. `feature_importance(X, y, feat_names)` (new) — LinearSVC coef_ weights ranked by absolute value
+5. `run_loso()` / `permutation_test_loso()` (unchanged) — locked since Phase 8 validation
 
 ### Critical Pitfalls
 
-1. **Multi-condition dimensionality explosion** — 3 conditions x 512 features = 1536 dims for N~50. PCA(20) inside Pipeline is the mitigation. Assert X_fused.shape[1] < 1600; verify BA does not drop below single-condition baseline.
+1. **Feature enrichment dimensionality regression** — confirmed Phase 7: 640-dim dropped BA from 0.670 to 0.554. Keep total features < N_train/5 ≈ 10 after any reduction. Use mean amplitude only (no peak, latency, AUC).
 
-2. **Permutation test at wrong level** — permuting trial-level y produces a too-narrow null distribution and falsely significant p-values. Assert len(y) == n_subjects before running. The ERP pipeline has one feature vector per subject — permuting y directly is correct.
+2. **Electrode selection leakage** — selecting top-K channels on full dataset then using in LOSO is leakage. Use literature-defined sets (P300: Pz/Cz/P3/P4/CPz) or select inside LOSO loop.
 
-3. **Multiple comparisons across conditions** — testing hcue/fcue/scue separately and reporting the best p-value inflates Type I error to ~14%. Pre-specify hcue as primary condition; apply Bonferroni (p<0.017) if all three are tested.
+3. **Time-window double-dipping** — running t-test on all 52 subjects to find the best window, then using that window in LOSO, is circular. Keep t-test strictly descriptive; use literature windows (250-500ms) for classification.
 
-4. **Wrong P300/N200 window for this dataset** — dot-probe task may shift the P300 peak outside 250-500ms. Plot grand-average ERP before LOSO; verify positive deflection exists. One-time check, not leakage.
+4. **PCA weight back-projection missing** — `clf.coef_` is in PCA component space (shape 1x20), not channel space. Back-project via `pca.components_.T @ clf.coef_.flatten()` to get (128,) channel weights.
 
-5. **Subject misalignment in fusion** — hstacking without checking sub_id alignment corrupts labels silently. Build dict[sub_id -> feat] per condition, intersect keys explicitly, align rows by sorted sub_id list.
-
----
+5. **LPP epoch duration** — current `TMAX=0.5` truncates the LPP window (500-800ms). Must change `TMAX=0.8` and assert `times[-1] >= 0.8` before extracting LPP features.
 
 ## Implications for Roadmap
 
-### Phase 1: P300 Feature Enrichment + N200
+### Phase 10: LPP Extension + Epoch Duration Fix
+**Rationale:** Foundation for all v3.0 work. Must extend `TMAX` to 0.8 and verify BA does not regress before any other analysis.
+**Delivers:** 384-dim feature matrix (P300+N200+LPP mean per channel); `avg_erps` array for t-test; confirmed non-regression of BA=0.670.
+**Addresses:** LPP component extraction (table stakes), epoch duration fix (Pitfall 5).
+**Avoids:** Pitfall 1 (dimensionality) — PCA(20) absorbs the increase; Pitfall 5 (epoch truncation).
 
-**Rationale:** Lowest risk, highest confidence. Extends existing working pipeline with additional features from the same avg-ERP arrays. No new data loading, no subject alignment complexity. Validates richer single-condition features before adding multi-condition complexity.
-**Delivers:** Per-channel P300 peak amplitude, latency, area-under-curve; N200 mean amplitude. Single-condition (hcue) LOSO BA with enriched features.
-**Addresses:** P1 features (P300 peak, latency, area; N200 mean)
-**Avoids:** Pitfall 4 (wrong window) — verify grand-average ERP first; Pitfall 7 (N200/P300 correlation) — check feature correlation matrix
+### Phase 11: Time-Window t-test (Descriptive)
+**Rationale:** Independent of classifier; runs immediately after Phase 10 provides `avg_erps`. No leakage risk if kept strictly descriptive.
+**Delivers:** t-statistic vs time plot; identification of peak discriminative window within 250-500ms.
+**Addresses:** Time-window t-test analysis (table stakes feature).
+**Avoids:** Pitfall 3 (double-dipping) — results reported separately, never fed back into LOSO feature window.
 
-### Phase 2: Permutation Test Statistical Validation
+### Phase 12: Electrode Selection + Parietal ROI Classifier
+**Rationale:** Core v3.0 scientific question: can 3 parietal channels (Pz/P3/P4) match or exceed BA=0.670? Requires EGI montage channel lookup (non-trivial).
+**Delivers:** Parietal-only 3-dim classifier with BA and permutation p-value; comparison vs 128-dim baseline.
+**Addresses:** Electrode subset selection (P1 feature), parietal-only classifier (differentiator).
+**Avoids:** Pitfall 2 (electrode selection leakage) — literature-defined channel sets only.
 
-**Rationale:** Validate single-condition results before adding multi-condition complexity. Permutation test logic is independent of fusion and should be verified on a known result (hcue BA=0.670) before being applied to fused features.
-**Delivers:** Permutation p-value for hcue enriched features. Confirmed subject-level permutation logic. Reusable permutation_test_loso() function.
-**Addresses:** Pitfall 6 (permutation at wrong level) — assert len(y) == n_subjects; Pitfall 5 (multiple comparisons) — pre-specify hcue as primary
-**Uses:** joblib.Parallel pattern from resting-state pipeline
-
-### Phase 3: Multi-Condition Fusion + Contrast Features
-
-**Rationale:** Depends on Phase 1 (per-condition feature dicts with sub_id keys) and Phase 2 (permutation test ready). Highest potential BA gain but highest dimensionality risk — must come after single-condition validation.
-**Delivers:** Fused X (hcue + fcue + scue), subject-aligned. Condition contrast (scue - hcue). LOSO BA + permutation p-value on fused features.
-**Addresses:** Pitfall 3 (dimensionality) — PCA(20) inside Pipeline; Pitfall 5 (multiple comparisons) — Bonferroni; Anti-pattern 2 (subject misalignment) — explicit sub_id intersection
+### Phase 13: Feature Importance
+**Rationale:** Post-hoc interpretation after LOSO significance confirmed. Last because it is descriptive, not a classification step.
+**Delivers:** Channel importance map (back-projected LR/SVM weights); top-20 features by absolute weight.
+**Addresses:** LR coef_ interpretation (table stakes), permutation importance (differentiator).
+**Avoids:** Pitfall 4 (PCA back-projection) — use `pca.components_.T @ clf.coef_.flatten()`.
 
 ### Phase Ordering Rationale
 
-- Phase 1 before Phase 3: feature extraction must be correct on single condition before fusion adds alignment complexity
-- Phase 2 before Phase 3: permutation test logic must be verified on a known result before the more complex fused experiment
-- Contrast features in Phase 3: requires both conditions feature dicts; natural byproduct of fusion work
+- Phase 10 before all others: `avg_erps` array and `TMAX=0.8` are prerequisites for LPP and t-test.
+- Phase 11 before Phase 12: t-test is independent and low-risk; validates 250-500ms window before electrode selection.
+- Phase 12 before Phase 13: importance analysis should run on the validated, reduced feature matrix.
+- Strict separation of descriptive (Phases 11, 13) from classification (Phases 10, 12) prevents leakage.
 
 ### Research Flags
 
-Standard patterns (skip deeper research):
-- **Phase 1:** Well-documented NumPy windowed operations on avg-ERP arrays. MNE API confirmed.
-- **Phase 2:** Permutation test pattern already exists in modma_mdd_real_experiment.py. Direct reuse.
+Phases likely needing deeper research during planning:
+- **Phase 12:** EGI 128-channel montage lookup is non-trivial. Channel names are numeric (E1-E128), not standard 10-20. Requires `mne.channels.make_standard_montage("GSN-HydroCel-128")` and spatial coordinate matching. Validate on 2-3 subjects before full run.
 
-Needs validation during implementation:
-- **Phase 3:** Subject count after intersecting all three conditions is unknown. If n_common < 40, treat multi-condition as ablation rather than primary result.
-
----
+Phases with standard patterns (skip research-phase):
+- **Phase 10:** LPP extraction is a direct extension of existing P300/N200 pattern.
+- **Phase 11:** `scipy.stats.ttest_ind` per time point is a standard ERP analysis pattern.
+- **Phase 13:** `LinearSVC.coef_` + PCA back-projection is a documented sklearn pattern.
 
 ## Confidence Assessment
 
 | Area | Confidence | Notes |
 |------|------------|-------|
-| Stack | HIGH | Zero new installs confirmed. All APIs verified against installed versions. np.trapezoid vs np.trapz confirmed for NumPy 2.x. |
-| Features | MEDIUM | P300 amplitude/latency HIGH confidence (replicated, iSPOT-D n>1000). N200 LOW-MEDIUM (fewer replications). ACM 2024 multi-condition result MEDIUM (single paper, different dataset). |
-| Architecture | HIGH | Based on direct inspection of run_modma_erp.py. Build order and component boundaries unambiguous. |
-| Pitfalls | HIGH | Leakage pitfalls from Brookshire 2024 and Saarschmidt 2021. Permutation level pitfall from direct codebase analysis. |
+| Stack | HIGH | All libraries verified installed; zero new installs required |
+| Features | MEDIUM | P1/P2 features well-supported; LPP deferral based on single preprint |
+| Architecture | HIGH | Based on direct code analysis + empirical Phase 7/8/9 results |
+| Pitfalls | HIGH | Pitfalls 1, 8, 10, 11 empirically confirmed, not just theoretical |
 
-**Overall confidence:** HIGH for implementation approach. MEDIUM for expected BA improvement.
+**Overall confidence:** HIGH
 
 ### Gaps to Address
 
-- **Trial counts per condition:** Unknown how many subjects have >=10 trials in fcue and scue. Check before Phase 3. If n_common < 40, single-condition hcue remains the primary result.
-- **Grand-average ERP window verification:** P300 window (250-500ms) assumed valid for dot-probe task. Must plot grand-average ERP at start of Phase 1 to confirm.
-- **N200 discriminability:** If N200 features do not improve BA in Phase 1 ablation, exclude from Phase 3 fusion to reduce dimensionality.
-
----
+- **EGI montage channel mapping:** Exact indices for Pz/P3/P4 in EGI HydroCel 128 not pre-computed. Must resolve in Phase 12 via `mne.channels.make_standard_montage("GSN-HydroCel-128")`. Failure silently produces wrong features.
+- **LPP epoch duration:** Whether MODMA .raw files support `TMAX=0.8` is unverified. Assert `times[-1] >= 0.8` at runtime in Phase 10.
+- **N200 grand-average:** Whether a distinct negative deflection exists in 100-250ms in MODMA dot-probe data is unverified. If not present, skip N200 features entirely.
 
 ## Sources
 
 ### Primary (HIGH confidence)
-- run_modma_erp.py — direct codebase inspection; current pipeline, LOSO, avg-ERP, BA=0.670 baseline
-- Brookshire et al., Frontiers in Neuroscience 2024 — data leakage in EEG studies
-- Saarschmidt et al., Scientific Reports 2021 — feature selection leakage inflates BA 10-20%
-- MNE-Python 1.11.0 Epochs/Evoked API — epoching, baseline, get_data(), get_peak() limitation confirmed
+- `run_modma_erp.py` — direct code analysis; current pipeline structure
+- `.planning/phases/07-p300-feature-enrichment-n200/07-01-SUMMARY.md` — 640-dim regression BA=0.554
+- `.planning/phases/08-permutation-test-validation/08-01-SUMMARY.md` — BA=0.670, p=0.021 baseline
+- `.planning/phases/09-multi-condition-fusion-contrast-features/09-VERIFICATION.md` — fusion BA=0.521
+- Brookshire et al., Frontiers in Neuroscience 2024 — data leakage in translational EEG
+- Bioinformatics 2010 — permutation importance as corrected feature importance measure
 
 ### Secondary (MEDIUM confidence)
-- ACM 2024 (Decoding Functional Brain Data for Emotion Recognition) — 79.84% with all ERP components + conditions
-- Frontiers Human Neuroscience 2022 — frontal P300 latency as MDD biomarker
-- Frontiers Psychiatry 2022 — P300 latency at C3/Pz discriminates MDD subtypes
-- Frontiers Human Neuroscience 2020 — enhanced P3 to sad cues, reduced P1/P3 to happy cues in MDD dot-probe
-- Nature Scientific Reports 2023 — frontal-parietal ERP differences in depressive states
-- Nature Mental Health 2023 — technical considerations for EEG biomarkers in MDD
+- arXiv 2510.21969 (2024) — parietal ROI for small-sample P300 classification
+- arXiv 2511.02735 (2024) — data-driven ROI selection for P300 BCIs
+- Frontiers Psychiatry 2022 — auditory P300 at Pz/Cz for MDD
+- MDPI Applied Sciences 2024 — SVM-RFE feature selection on EEG depression
 
 ### Tertiary (LOW confidence)
-- Biological Psychiatry 1993 — N200 in depression (foundational but old; limited replication)
+- medrxiv 2020 — lack of evidence for reduced LPP in MDD (preprint; drives LPP deferral)
 
 ---
 *Research completed: 2026-02-23*

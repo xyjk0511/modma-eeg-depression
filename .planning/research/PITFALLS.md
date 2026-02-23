@@ -1,210 +1,232 @@
-# Domain Pitfalls
+# Pitfalls Research
 
-**Domain:** ERP task-state MDD classification -- P300/N200 features, multi-condition fusion (MODMA dot-probe)
-**Researched:** 2026-02-22
+**Domain:** ERP task-state MDD classification — N200/LPP components, electrode selection, time-window analysis, feature importance (MODMA dot-probe, N=52)
+**Researched:** 2026-02-23
 **Confidence:** HIGH
 
 ---
 
 ## Critical Pitfalls
-### Pitfall 1: ERP Averaging Computed on Full Dataset Before LOSO Split
+
+### Pitfall 1: Feature Enrichment Increases Dimensionality Faster Than It Adds Signal (Confirmed in Phase 7)
 
 **What goes wrong:**
-The average ERP per subject is computed per-subject independently -- this is safe. The risk is future additions: computing a grand-average ERP across all subjects to define a peak-detection window, or fitting StandardScaler/PCA on all subjects before the LOSO loop. Both constitute leakage.
+Adding more ERP features per channel multiplies dimensionality without multiplying discriminative information. Phase 7 demonstrated this exactly: expanding from 128-dim (P300 mean) to 640-dim (P300 mean+peak+latency+AUC + N200 mean) regressed BA from 0.670 to 0.554. The pipeline reverted to 128-dim to recover the baseline.
 
 **Why it happens:**
-ERP analysis naturally involves group-level operations (grand averages, component latency estimation). Researchers apply these globally for convenience.
-
-**Consequences:**
-Inflated BA. Saarschmidt et al. (Scientific Reports 2021) showed feature selection outside CV inflates accuracy by 10-20% in neuropsychiatric biomarker studies.
+With N=52 subjects and LOSO (51 training samples per fold), the feature-to-sample ratio is the binding constraint. 640 dims / 51 training samples ≈ 12.5 — far above the safe threshold of ~0.2. PCA(20) inside the pipeline cannot fully compensate because the 640 features are correlated within-channel, so PCA components capture within-channel variance rather than between-subject discriminative variance.
 
 **How to avoid:**
-- StandardScaler must be fit inside the LOSO loop on training subjects only -- current Pipeline does this correctly, verify it stays
-- PCA must be fit inside the LOSO loop -- current PCA(n_components=20) inside Pipeline is correct
-- Fixed time windows (250-500ms for P300, 100-250ms for N200) are safe -- they come from literature, not data
-- Any peak-detection window derived from data must not use the test subject
+- Before adding any new feature type, compute the projected feature-to-sample ratio: new_dims / (N-1). If > 2, reduce first.
+- For electrode selection: reduce to a small channel subset (5-10 channels from Pz/Cz/Fz) before adding feature types, not after.
+- For LPP (500-800ms): add as a single scalar per electrode, not per-channel mean across all 128 channels, unless electrode selection is applied first.
+- Target total features < N_train / 5 = 51/5 ≈ 10 after any reduction step.
 
 **Warning signs:**
-BA suspiciously high (>0.80) on LOSO with N=52. Any fit or transform call outside the Pipeline object.
+BA drops below 0.670 baseline after adding features. Feature matrix shape exceeds (52, 200). PCA(20) retains < 50% variance.
 
-**Phase to address:** ERP feature extraction phase
+**Phase to address:** Electrode selection phase (must precede any feature type expansion)
 
 ---
-### Pitfall 2: Trial Rejection Threshold Applied Globally Creates Subject-Level Leakage
+
+### Pitfall 2: Electrode Selection by Full-Dataset Topographic Difference Map Is Leakage
 
 **What goes wrong:**
-The current code uses reject=dict(eeg=150e-6) as a fixed amplitude threshold -- this is safe. The risk is if a data-adaptive threshold (e.g., median + k*MAD across all subjects) is used to set the rejection criterion. That would use test-subject trial statistics to define the threshold.
+Selecting the top-K electrodes by MDD vs HC amplitude difference computed on all 52 subjects, then using those electrodes as features in LOSO, is feature selection leakage. The test subject's data influenced which electrodes were selected.
 
 **Why it happens:**
-Adaptive thresholds are better practice for artifact rejection in general EEG, but in a LOSO loop they must be computed per-training-fold or be fixed a priori.
-
-**Consequences:**
-The set of included subjects changes depending on which subject is held out, making the evaluation non-reproducible and potentially biased.
+Topographic maps are a standard ERP visualization tool. Researchers naturally inspect the grand-average difference map and pick the channels with the largest effect. This feels like domain knowledge but is data-driven selection on the full dataset.
 
 **How to avoid:**
-- Keep reject=dict(eeg=150e-6) as a fixed threshold (current approach is correct)
-- The data.shape[0] < 10 minimum trial count is a fixed threshold -- safe
-- If adaptive thresholds are added, compute them only on training subjects within each LOSO fold
+- Use literature-defined channel sets: P300 → {Pz, Cz, P3, P4, CPz}; N200 → {Fz, FCz, Cz}; LPP → {Pz, P3, P4, POz}.
+- Or perform electrode selection inside the LOSO loop: for each fold, select top-K channels on training subjects only, apply the same K channels to the test subject.
+- Never select channels by inspecting the full-dataset MDD-HC difference map and then using those channels in the same LOSO evaluation.
 
 **Warning signs:**
-Subject inclusion set changes when you change the random seed or fold order.
+Channel selection step occurs before loo.split(). Selected channels are the same across all LOSO folds. BA is suspiciously high (>0.80) after channel selection.
 
-**Phase to address:** ERP feature extraction phase
+**Phase to address:** Electrode selection phase — must be inside LOSO loop or use literature-defined sets
 
 ---
-### Pitfall 3: Multi-Condition Feature Concatenation Triples Dimensionality Without Tripling Information
+
+### Pitfall 3: Time-Window t-test on Full Dataset Then Using That Window in LOSO Is Double-Dipping
 
 **What goes wrong:**
-Concatenating hcue + fcue + scue features produces 3x the feature dimensions (e.g., 128 channels x 3 conditions = 384 dims) for the same N=52 subjects. With LOSO, each fold trains on 51 subjects. The effective degrees of freedom are ~51 subjects -- the conditions are correlated within-subject. A classifier with 384 features and 51 training samples will overfit severely.
+Running a group t-test across all 52 subjects to find the most discriminative 50ms time bin, then using that bin as the feature window in LOSO, is circular. The test subject's data determined the window.
 
 **Why it happens:**
-Multi-condition fusion seems like "more data" but it is more features from the same subjects. The feature-to-sample ratio worsens, not improves.
-
-**Consequences:**
-BA near chance or worse than single-condition. Current results show this pattern: hcue BA=0.670, fcue BA=0.410, scue BA=0.536. Naive concatenation will likely produce BA near 0.5 unless dimensionality is aggressively reduced.
+Time-window analysis is described as exploratory or descriptive but the window is then used in the same classification pipeline. The distinction between exploration and exploitation is lost.
 
 **How to avoid:**
-- Apply PCA inside the LOSO loop before concatenation, or reduce each condition to a small number of components first
-- Target total features < N_train / 5 = 51/5 ~ 10 features after fusion
-- Consider condition-level aggregation: compute a single scalar per condition (e.g., mean frontal P300 amplitude) rather than all 128 channels
-- Alternatively, use only the best single condition (hcue) and treat multi-condition as an ablation
+- Time-window t-tests are valid as a standalone descriptive analysis (report which windows are significant, do not feed back into LOSO).
+- If the goal is to find the optimal window for classification, do it inside the LOSO loop: for each fold, find the best window on training subjects, apply to test subject.
+- Safest approach: use literature-defined windows (P300: 250-500ms, N200: 100-250ms, LPP: 500-800ms) for classification; report t-test results separately as dataset characterization.
 
 **Warning signs:**
-Feature matrix shape after concatenation exceeds 50 columns. BA drops below single-condition baseline after fusion.
+The time window used in load_erp_features() was chosen based on a t-test run on the full dataset. The same subjects appear in both the t-test and the LOSO evaluation.
 
-**Phase to address:** Multi-condition fusion phase
+**Phase to address:** Time-window analysis phase — keep descriptive analysis and classification pipeline strictly separate
 
 ---
-### Pitfall 4: P300/N200 Window Fixed at Literature Values May Miss Actual Component in This Dataset
+
+### Pitfall 4: Feature Importance from Classifier Weights Interpreted as Channel Importance Without Accounting for PCA Rotation
 
 **What goes wrong:**
-The P300 window (250-500ms) is standard for auditory/visual oddball paradigms. The MODMA dot-probe task uses a different stimulus type and timing. The actual P300 peak may be shifted (e.g., 300-600ms for cognitive tasks). Using a fixed window that misses the actual peak produces near-zero discriminative features.
+The current pipeline is StandardScaler → PCA(20) → LogisticRegression. The classifier weights are in PCA component space, not in original channel space. Mapping weights back to channels requires multiplying by the PCA loading matrix. Skipping this step produces meaningless channel importance values.
 
 **Why it happens:**
-Researchers apply standard windows from the literature without verifying them on the actual dataset grand-average ERP.
-
-**Consequences:**
-Features capture noise rather than the component of interest. BA near chance even if the component genuinely differs between MDD and HC.
+clf.coef_ is readily accessible. Researchers report these directly as feature weights without accounting for the PCA transformation.
 
 **How to avoid:**
-- Plot the grand-average ERP (mean across all subjects) for each condition before defining feature windows
-- Verify a positive deflection exists in the 250-500ms range for hcue condition
-- If the peak is shifted, adjust the window based on the grand average -- this is a fixed, data-independent decision made before any CV, not leakage
-- For N200: verify a negative deflection exists in 100-250ms
+- To get channel-space weights: channel_weights = pca.components_.T @ clf.coef_.flatten() (shape: n_channels).
+- Or use permutation importance directly on the original feature matrix (before PCA), which is model-agnostic and does not require weight back-projection.
+- If using permutation importance, permute one feature at a time and measure BA drop.
+- Report which approach was used and its limitations.
 
 **Warning signs:**
-Mean P300 amplitude across all subjects is near zero or negative. Feature variance is very low.
+Feature importance reported as clf.coef_ shape (1, 20) — these are PCA component weights, not channel weights. Channel importance map has 20 values instead of 128.
 
-**Phase to address:** ERP feature extraction phase (verification step before LOSO)
+**Phase to address:** Feature importance phase — verify weight back-projection or use permutation importance
 
 ---
-### Pitfall 5: Multiple Comparisons Across Conditions Inflates Type I Error
+
+### Pitfall 5: LPP Window (500-800ms) Extends Beyond Epoch End
 
 **What goes wrong:**
-Running permutation tests separately for hcue, fcue, and scue, then reporting the best p-value, inflates Type I error by a factor of 3. With 3 conditions and alpha=0.05, the expected false positive rate is ~14%.
+If the epoch end is at 700ms or 800ms, the LPP window (500-800ms) either gets truncated or captures the epoch boundary artifact. Mean amplitude in a truncated window is not comparable across subjects with different epoch lengths.
 
 **Why it happens:**
-Each condition is analyzed independently and the best result is highlighted. This is implicit p-hacking even without intent.
-
-**Consequences:**
-A p<0.05 result for one condition may be a false positive. The current hcue BA=0.670 needs a valid permutation p-value with multiple comparison correction.
+LPP literature uses 500-800ms or even 500-1000ms. Researchers apply these windows without checking the actual epoch duration in the dataset.
 
 **How to avoid:**
-- Apply Bonferroni correction: require p<0.017 per condition if testing 3 conditions
-- Or pre-specify the primary condition (hcue, as it has the highest BA) before running permutation tests
-- Report all three condition results regardless of significance
+- Before defining LPP_WIN, check epochs.tmax in the MODMA data. If tmax < 0.8, truncate LPP_WIN to (0.5, tmax - 0.05) to avoid boundary effects.
+- Print times[-1] from the loaded epoch data and assert it is >= LPP_WIN[1] before extracting features.
+- If epoch duration is insufficient for LPP, report this as a dataset limitation and skip LPP.
 
 **Warning signs:**
-Only the best-performing condition has a permutation test run. p-values reported without multiple comparison correction.
+lpp_mask returns fewer time points than expected. times[-1] < 0.8. Mean LPP amplitude is near zero for all subjects.
+
+**Phase to address:** LPP feature extraction phase — verify epoch duration before defining window
+
+---
+### Pitfall 6: ERP Averaging Leakage (Pre-existing)
+
+**What goes wrong:**
+Fitting StandardScaler/PCA on all subjects before the LOSO loop constitutes leakage.
+
+**How to avoid:**
+- StandardScaler and PCA must be fit inside the LOSO loop on training subjects only.
+- Fixed time windows from literature are safe.
+
+**Warning signs:**
+BA > 0.80 on LOSO with N=52. Any fit or transform call outside the Pipeline object.
+
+**Phase to address:** All feature extraction phases
+
+---
+
+### Pitfall 7: Multiple Comparisons Across Conditions (Pre-existing)
+
+**What goes wrong:**
+Running permutation tests for hcue, fcue, scue then reporting the best p-value inflates Type I error by 3x.
+
+**How to avoid:**
+- Apply Bonferroni correction (p<0.017 per condition) or pre-specify the primary condition (hcue).
+- Report all condition results regardless of significance.
 
 **Phase to address:** Statistical validation phase
 
----
-### Pitfall 6: Permutation Test Permutes at Wrong Level
+---## Moderate Pitfalls
+
+### Pitfall 8: N200/P300 Correlation Adds Dimensionality Without Information (Confirmed Phase 7)
 
 **What goes wrong:**
-In the ERP pipeline, each subject contributes exactly one feature vector (the avg-ERP). LOSO operates at subject level. If a permutation test permutes the y array at the trial level rather than the subject level, the null distribution is invalid -- too narrow, producing falsely significant p-values.
-
-**Why it happens:**
-Copy-paste from the resting-state pipeline where windows were the unit of analysis.
-
-**Consequences:**
-Null distribution is too narrow, producing falsely significant p-values.
+Phase 7 showed adding N200 mean (128-dim) to P300 features degraded BA from 0.670 to 0.554.
+The N200 window likely captures the rising edge of the P300 rather than a distinct trough.
 
 **How to avoid:**
-- In the ERP pipeline, y has one entry per subject -- permuting y directly is correct
-- Assert len(y) == len(np.unique(subject_ids)) before running permutation test
-- If trial-level features are added later, permute subject labels and propagate to all trials of that subject
+- Verify a distinct negative deflection exists in 100-250ms in the grand-average ERP first.
+- Check correlation between N200 mean and P300 mean: if |r| > 0.5, they are redundant.
+- If N200 is added, use mean across 5 frontal channels only, not all 128.
 
-**Warning signs:**
-len(y) equals number of trials rather than number of subjects.
-
-**Phase to address:** Statistical validation phase
+**Phase to address:** N200 feature extraction phase
 
 ---
 
-## Moderate Pitfalls
-
-### Pitfall 7: N200 and P300 Features Are Highly Correlated
+### Pitfall 9: Permutation Importance on Full Dataset Leaks Test Subject Information
 
 **What goes wrong:**
-N200 (100-250ms) and P300 (250-500ms) are adjacent in time. If the P300 is large, the N200 window may capture the rising edge of the P300 rather than the N200 trough. The two features will be highly correlated, adding dimensionality without adding information.
+Permutation importance computed on all 52 subjects uses the test subject to estimate importance.
+Valid for descriptive analysis but not for selecting features to use in LOSO.
 
 **How to avoid:**
-- Verify N200 and P300 features have low correlation (|r| < 0.5) across subjects
-- If correlation is high, use only the more discriminative feature
-- Consider peak amplitude (min in N200 window, max in P300 window) rather than mean amplitude to better isolate each component
+- Descriptive use: permutation importance on full dataset is acceptable, labeled as descriptive.
+- Feature selection use: compute inside each LOSO fold on training subjects only.
 
-**Phase to address:** ERP feature extraction phase
+**Phase to address:** Feature importance phase
 
 ---
-### Pitfall 8: Latency Features Are Noisy at N=52
+
+### Pitfall 10: Latency Features Are Noisy at N=52 (Confirmed Phase 7)
 
 **What goes wrong:**
-Peak latency (argmax of avg-ERP in the P300 window) is a single-sample measurement with high variance. With only 52 subjects and noisy avg-ERPs, latency features add noise rather than signal.
+Phase 7 included P300 latency per channel (128-dim) and BA regressed to 0.554.
+Peak latency (argmax) is a single-sample measurement with high variance at N=52.
 
 **How to avoid:**
-- Treat latency features as secondary to amplitude features
-- If latency is included, use a smoothed estimate (centroid of the P300 window rather than argmax)
-- Evaluate latency features F-scores in ablation -- if F < 2.0, exclude
+- Treat latency as secondary to amplitude features.
+- If included, use centroid of the P300 window rather than argmax.
+- Run ablation: if BA drops when latency is added, exclude it.
 
-**Phase to address:** ERP feature extraction phase
+**Phase to address:** Feature enrichment phases
 
 ---
 
-### Pitfall 9: Channel Selection by Inspecting Full-Dataset Topographic Map
+### Pitfall 11: Multi-Condition Fusion Degrades Performance (Confirmed Phase 9)
 
 **What goes wrong:**
-If channels are selected based on which channels show the largest MDD vs HC difference in the full dataset, and those channels are then used as features in LOSO, this is feature selection leakage. The current approach uses all 128 channels + PCA inside Pipeline -- this is safe.
+Phase 9: 384-dim fusion BA=0.521, p=0.412 — worse than hcue alone (BA=0.670, p=0.021).
+Adding conditions introduces noise that overwhelms the hcue signal.
 
 **How to avoid:**
-- Use literature-defined channel sets (Pz, Cz, Fz for P300) rather than data-driven selection
-- Or use PCA inside the LOSO loop (current approach -- keep it)
-- Never select channels by inspecting the full-dataset difference map
+- Treat multi-condition fusion as ablation, not primary analysis.
+- If fusion is attempted, reduce each condition to 3 or fewer PCA components first.
 
-**Phase to address:** ERP feature extraction phase
+**Phase to address:** Any future multi-condition analysis
 
----
-## Technical Debt Patterns
+---## Technical Debt Patterns
 
 | Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
 |----------|-------------------|----------------|-----------------|
-| All 128 channels as features | No channel selection needed | 128 dims forces PCA; PCA components uninterpretable | Acceptable with PCA inside CV |
-| Fixed P300 window (250-500ms) | No dataset-specific tuning | May miss actual peak if shifted | Acceptable if grand-average ERP verified first |
-| Single condition (hcue only) | Avoids multi-condition dimensionality problem | Misses condition-specific MDD effects | Acceptable as baseline |
-| Mean amplitude only (no latency, no area) | Simple, low-variance feature | Misses latency differences | Acceptable for initial validation |
+| All 128 channels | No channel selection | PCA uninterpretable for importance | OK with PCA inside CV; not if importance is goal |
+| Fixed P300 window | No tuning needed | May miss actual peak | OK if grand-average ERP verified |
+| Single condition (hcue) | Avoids dimensionality problem | Misses condition effects | OK as primary result (confirmed Phase 9) |
+| Mean amplitude only | Low-variance feature | Misses latency | OK — Phase 7 showed latency+AUC hurt |
+| Literature electrode sets | No leakage risk | May not be optimal | OK — safer than data-driven selection |
 
 ---
 
-## "Looks Done But Isn't" Checklist
+## Integration Gotchas
 
-- [ ] **ERP averaging:** Verify avg_erp is computed per-subject independently, not using any cross-subject statistics
-- [ ] **Scaler/PCA inside CV:** Verify StandardScaler and PCA are inside the Pipeline object, not fit before loo.split()
-- [ ] **Grand-average ERP plotted:** Verify P300 peak exists in 250-500ms window before reporting features
-- [ ] **Permutation test at subject level:** Verify len(y) == n_subjects, not n_trials
-- [ ] **Multiple comparison correction:** If testing 3 conditions, apply Bonferroni or pre-specify primary condition
-- [ ] **Multi-condition dimensionality:** If concatenating conditions, verify total features < 10 after reduction
-- [ ] **Trial count balance:** Verify MDD and HC subjects have similar trial counts (unequal trials -> unequal SNR -> confound)
+| Integration | Common Mistake | Correct Approach |
+|-------------|----------------|------------------|
+| PCA + feature importance | Report clf.coef_ as channel weights | Back-project: pca.components_.T @ clf.coef_.flatten() |
+| Time-window t-test + LOSO | Use t-test window in same LOSO | Keep t-test descriptive; use literature windows in LOSO |
+| Electrode selection + LOSO | Select on full dataset, use in LOSO | Select inside LOSO loop or use literature channels |
+| LPP window + epoch duration | Apply 500-800ms without checking tmax | Assert times[-1] >= LPP_WIN[1] before extraction |
+| N200 + P300 features | Concatenate all 128 channels for both | Verify distinct N200 trough; reduce to frontal channels |
+
+---## Looks Done But Isnt Checklist
+
+- [ ] **Electrode selection:** Literature-defined or inside LOSO loop, not on full dataset
+- [ ] **Time-window t-test:** Reported separately from LOSO, not used to define LOSO feature window
+- [ ] **Feature importance:** Weights back-projected through PCA, or use permutation importance
+- [ ] **LPP window:** times[-1] >= 0.8 before defining LPP_WIN = (0.5, 0.8)
+- [ ] **N200 grand-average:** Distinct negative deflection in 100-250ms verified before adding N200
+- [ ] **Dimensionality:** Total features < 10 after reduction (N=52 constraint)
+- [ ] **Scaler/PCA inside CV:** Inside Pipeline object, not fit before loo.split()
+- [ ] **Permutation level:** len(y) == n_subjects, not n_trials
+- [ ] **Feature enrichment ablation:** BA does not drop below 0.670 baseline after adding features
 
 ---
 
@@ -212,11 +234,12 @@ If channels are selected based on which channels show the largest MDD vs HC diff
 
 | Pitfall | Recovery Cost | Recovery Steps |
 |---------|---------------|----------------|
-| Scaler fit outside CV | LOW | Move scaler inside Pipeline; re-run LOSO |
-| Wrong P300 window | LOW | Plot grand-average ERP; adjust window; re-run |
-| Multi-condition dimensionality explosion | MEDIUM | Add PCA(n_components=5) per condition inside CV; re-run |
-| Multiple comparison inflation | LOW | Apply Bonferroni; re-report p-values |
-| Permutation at trial level | MEDIUM | Rewrite permutation loop to permute subject labels; re-run 1000 permutations |
+| Feature enrichment regresses BA (Phase 7) | LOW | Revert to 128-dim p300_mean; add features one type at a time with ablation |
+| Electrode selection leakage | MEDIUM | Re-run with literature channels or inside LOSO; re-run permutation test |
+| Time-window double-dipping | MEDIUM | Separate t-test from LOSO; re-run LOSO with literature windows |
+| PCA weight back-projection missing | LOW | Add pca.components_.T @ clf.coef_.flatten() post-hoc |
+| LPP window truncated | LOW | Check tmax; adjust LPP_WIN; re-extract features |
+| Scaler fit outside CV | LOW | Move inside Pipeline; re-run LOSO |
 
 ---
 
@@ -224,27 +247,30 @@ If channels are selected based on which channels show the largest MDD vs HC diff
 
 | Pitfall | Prevention Phase | Verification |
 |---------|------------------|--------------|
-| ERP averaging leakage (Pitfall 1) | ERP feature extraction | Assert no cross-subject ops outside Pipeline |
-| Trial rejection threshold leakage (Pitfall 2) | ERP feature extraction | Confirm reject dict is fixed, not data-derived |
-| Multi-condition dimensionality (Pitfall 3) | Multi-condition fusion | Assert features.shape[1] < 15 after fusion |
-| Wrong P300/N200 window (Pitfall 4) | ERP feature extraction | Plot grand-average ERP before LOSO |
-| Multiple comparison inflation (Pitfall 5) | Statistical validation | Bonferroni or pre-specified primary condition |
-| Permutation at wrong level (Pitfall 6) | Statistical validation | Assert len(y) == n_subjects |
-| N200/P300 correlation (Pitfall 7) | ERP feature extraction | Check feature correlation matrix |
-| Latency feature noise (Pitfall 8) | ERP feature extraction | F-score ablation; exclude if F < 2.0 |
-| Channel selection leakage (Pitfall 9) | ERP feature extraction | Use literature channels or PCA inside CV only |
+| Feature enrichment dimensionality (P1) | Electrode selection phase (before feature expansion) | Assert features.shape[1] < 10 after reduction |
+| Electrode selection leakage (P2) | Electrode selection phase | Literature-defined or inside LOSO loop |
+| Time-window double-dipping (P3) | Time-window analysis phase | t-test and LOSO use independent windows |
+| Feature importance PCA back-projection (P4) | Feature importance phase | Weight shape is (128,) not (20,) |
+| LPP epoch duration (P5) | LPP feature extraction phase | Assert times[-1] >= LPP_WIN[1] |
+| ERP averaging leakage (P6) | All feature extraction phases | No cross-subject ops outside Pipeline |
+| Multiple comparison inflation (P7) | Statistical validation phase | Bonferroni or pre-specified primary condition |
+| N200/P300 correlation (P8) | N200 feature extraction phase | Grand-average ERP verified; feature correlation checked |
+| Permutation importance leakage (P9) | Feature importance phase | Descriptive vs. selection use distinguished |
+| Latency feature noise (P10) | Feature enrichment phases | Ablation: BA does not drop when latency added |
+| Multi-condition fusion degradation (P11) | Any future fusion phase | Pre-reduce to 3 or fewer components per condition |
 
 ---
 
 ## Sources
 
-- [Data leakage in deep learning studies of translational EEG](https://www.frontiersin.org/journals/neuroscience/articles/10.3389/fnins.2024.1373515/full) -- Brookshire et al., Frontiers in Neuroscience 2024. HIGH confidence.
-- [Inflated prediction accuracy of neuropsychiatric biomarkers caused by data leakage in feature selection](https://www.nature.com/articles/s41598-021-87157-3) -- Saarschmidt et al., Scientific Reports 2021. HIGH confidence.
-- [Risk of data leakage in estimating diagnostic performance for psychiatric disorders](https://www.nature.com/articles/s41598-023-43542-8) -- Nature Scientific Reports 2023. HIGH confidence.
-- [Striking a balance: analyzing unbalanced ERP data](https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2015.00555/full) -- Frontiers in Psychology 2015. MEDIUM confidence.
-- [Technical and clinical considerations for EEG-based biomarkers for MDD](https://www.nature.com/articles/s44184-023-00038-7) -- Nature Mental Health 2023. HIGH confidence.
-- Codebase analysis: run_modma_erp.py -- current ERP pipeline with LOSO, avg-ERP per subject, 128-channel P300 features. HIGH confidence (direct inspection).
+- Phase 7 empirical result: 640-dim regressed BA 0.670 to 0.554 — .planning/phases/07-p300-feature-enrichment-n200/07-01-SUMMARY.md. HIGH confidence.
+- Phase 8 empirical result: 128-dim P300 mean BA=0.670, p=0.021 — .planning/phases/08-permutation-test-validation/08-01-SUMMARY.md. HIGH confidence.
+- Phase 9 empirical result: 384-dim fusion BA=0.521, p=0.412 — .planning/phases/09-multi-condition-fusion-contrast-features/09-VERIFICATION.md. HIGH confidence.
+- Brookshire et al., Frontiers in Neuroscience 2024 — data leakage in translational EEG. HIGH confidence.
+- Saarschmidt et al., Scientific Reports 2021 — inflated accuracy from feature selection leakage. HIGH confidence.
+- Nature Mental Health 2023 — EEG biomarkers for MDD. HIGH confidence.
+- Codebase analysis: run_modma_erp.py — current ERP pipeline. HIGH confidence (direct inspection).
 
 ---
-*Pitfalls research for: ERP task-state MDD classification (P300/N200 features, multi-condition fusion)*
-*Researched: 2026-02-22*
+*Pitfalls research for: ERP deep analysis — N200/LPP components, electrode selection, time-window analysis, feature importance (v3.0 milestone)*
+*Researched: 2026-02-23*

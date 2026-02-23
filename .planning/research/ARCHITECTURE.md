@@ -1,260 +1,272 @@
 # Architecture Research
 
-**Domain:** ERP task-state MDD classification pipeline (MODMA dot-probe)
+**Domain:** ERP task-state MDD classification pipeline (MODMA dot-probe) — v3.0 ERP Deep Analysis
 **Researched:** 2026-02-23
 **Confidence:** HIGH
 
-## Standard Architecture
+## Current State (v2.0 Baseline — Built and Validated)
 
-### System Overview
+`run_modma_erp.py` is the single-file pipeline. All v2.0 phases (7-9) are complete.
+
+```
+run_modma_erp.py
+├── load_erp_features()          # 128-dim P300 mean per channel (hcue)
+├── load_erp_features_dict(cond) # per-condition dict[sub_id → (feat, label)]
+├── fuse_conditions(cond_dicts)  # intersect sub_ids, hstack features
+├── _loso_ba(X, y)               # silent LOSO for permutation loop
+├── permutation_test_loso(X, y)  # 1000-perm subject-level shuffle
+└── run_loso(X, y, ids)          # LOSO CV: StandardScaler→PCA(20)→LogisticReg
+```
+
+Validated results:
+- hcue single-condition: BA=0.670, p=0.021 (primary finding)
+- 3-condition fusion: BA=0.521, p=0.412 (negative)
+- scue-hcue contrast: BA=0.521, p=0.384 (negative)
+
+## v3.0 Target Features
+
+Four new analysis directions, all building on the existing `run_modma_erp.py` architecture:
+
+1. LPP component extraction (500–800ms mean amplitude per channel)
+2. Electrode selection — identify top-K channels by discriminative power
+3. Time-window t-test — group-level MDD vs HC t-test across time points
+4. Feature importance — SVM weights or permutation importance on LOSO folds
+
+## System Overview
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                      ERP Data Layer                         │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │  erp_io.py — load .raw, filter, epoch per condition  │   │
-│  │  Input: ERP_DIR/*.raw  Output: dict[sub_id → epochs] │   │
-│  └──────────────────────────────────────────────────────┘   │
+│  load_erp_features() — .raw → filter → epoch → avg_erp     │
+│  UNCHANGED from v2.0                                        │
 ├─────────────────────────────────────────────────────────────┤
-│                    ERP Feature Layer                        │
-│  ┌──────────────┐  ┌──────────────┐                         │
-│  │  P300 feats  │  │  N200 feats  │                         │
-│  │  250–500ms   │  │  100–250ms   │                         │
-│  │  mean/peak/  │  │  mean amp    │                         │
-│  │  latency     │  │  per channel │                         │
-│  └──────┬───────┘  └──────┬───────┘                         │
-│         └─────────────────┘                                 │
-│                    ↓ per condition                          │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │  fusion — np.hstack(hcue, fcue, scue feat vectors)   │   │
-│  └──────────────────────────────────────────────────────┘   │
+│                    Feature Extraction Layer                 │
+│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐       │
+│  │  P300 feats  │  │  N200 feats  │  │  LPP feats   │       │
+│  │  250–500ms   │  │  100–250ms   │  │  500–800ms   │       │
+│  │  mean amp    │  │  mean amp    │  │  mean amp    │       │
+│  │  (128,)      │  │  (128,)      │  │  (128,)      │       │
+│  └──────┬───────┘  └──────┬───────┘  └──────┬───────┘       │
+│         └─────────────────┴─────────────────┘               │
+│                    np.concatenate → (384,)                  │
 ├─────────────────────────────────────────────────────────────┤
-│                 Classification Layer                        │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │  LOSO CV: StandardScaler → PCA(20) → LogisticReg     │   │
-│  └──────────────────────────────────────────────────────┘   │
+│                  Electrode Selection Layer (NEW)            │
+│  select_electrodes(X, y, k=10)                              │
+│  rank channels by t-stat → return X[:, top_k_indices]       │
 ├─────────────────────────────────────────────────────────────┤
-│                  Evaluation Layer                           │
-│  ┌────────────────┐  ┌──────────────────────────────────┐   │
-│  │  BA / AUC      │  │  Permutation test (n=1000)        │   │
-│  └────────────────┘  └──────────────────────────────────┘   │
+│                 Classification Layer (UNCHANGED)            │
+│  run_loso(): StandardScaler → PCA(20) → LogisticRegression  │
+├─────────────────────────────────────────────────────────────┤
+│                  Analysis Layer (NEW)                       │
+│  ┌────────────────────┐  ┌──────────────────────────────┐   │
+│  │  time_window_ttest │  │  feature_importance()         │   │
+│  │  MDD vs HC t-stat  │  │  SVM weights per feature dim  │   │
+│  │  per time point    │  │                               │   │
+│  └────────────────────┘  └──────────────────────────────┘   │
+├─────────────────────────────────────────────────────────────┤
+│                  Evaluation Layer (UNCHANGED)               │
+│  permutation_test_loso(): 1000-perm, BA, p-value            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Component Responsibilities
+## Component Responsibilities
 
-| Component | Responsibility | Communicates With |
-|-----------|---------------|-------------------|
-| `run_modma_erp.py` (existing) | Entry point, orchestrates condition loop | erp_io, erp_features, classify, evaluate |
-| `erp_io.py` (new) | Load .raw, filter, epoch, return avg ERP per subject | MNE, config |
-| `erp_features.py` (new) | Extract P300 + N200 features from avg ERP | erp_io output |
-| fusion (inline) | np.hstack per-condition feature vectors | erp_features output |
-| `run_loso()` (existing) | LOSO CV with sklearn Pipeline | fusion output |
-| `permutation_test_loso()` (new) | Permutation test on LOSO BA | run_loso output |
+| Component | New/Modified/Unchanged | Responsibility |
+|-----------|------------------------|----------------|
+| `load_erp_features()` | Modified | Add LPP_WIN; extend feat to 384-dim |
+| `run_loso()` | Unchanged | LOSO CV — do not touch |
+| `permutation_test_loso()` | Unchanged | Statistical validation |
+| `select_electrodes(X, y, k)` | New | Rank 128 channels by t-stat, return top-k indices |
+| `time_window_ttest(avg_erps, y, times)` | New | t-stat per time point, identify discriminative windows |
+| `feature_importance(X, y, feat_names)` | New | SVM coef_ weights ranked by absolute value |
 
-## Recommended Project Structure
+## Integration Points
 
-```
-D:/eeg/
-├── run_modma_erp.py     # existing entry point — extend, do not replace
-├── erp_io.py            # NEW: load_erp_epochs(condition) -> dict[sub_id -> (avg_erp, label)]
-├── erp_features.py      # NEW: extract_p300_features(), extract_n200_features()
-└── erp_evaluate.py      # NEW: permutation_test_loso(X, y, ids, pipe, n_perm)
-```
+### What Stays Unchanged
 
-Fusion and subject alignment stay inline in `run_modma_erp.py` — they are ~15 lines, no separate file needed.
+| Element | Why |
+|---------|-----|
+| `run_loso()` | Locked since phase 7. PCA inside pipeline prevents leakage. |
+| `permutation_test_loso()` | Validated at p=0.021. No changes needed. |
+| Config: TMIN, TMAX, BASELINE, FMIN, FMAX | Validated preprocessing parameters. |
+| Epoch rejection: `eeg=150e-6`, min 10 trials | Validated QC thresholds. |
 
-### Structure Rationale
+### What Changes (Modified)
 
-- `erp_io.py`: Isolates slow MNE I/O. Enables .npz caching and independent testing.
-- `erp_features.py`: All ERP component extractors with standard signature `(avg_erp, times) -> (feat, names)`. Mirrors existing `features.py` pattern.
-- `erp_evaluate.py`: Permutation test is expensive and reusable. Mirrors existing `evaluate.py` pattern from resting-state pipeline.
-- `run_modma_erp.py`: Stays as thin orchestrator — reads epochs, calls extractors, fuses, classifies, evaluates.
+| Element | Change | Reason |
+|---------|--------|--------|
+| `load_erp_features()` | Add LPP_WIN=(0.50,0.80); extend feat 128→384 dims | LPP is the third ERP component target |
+| Config block | Add `LPP_WIN = (0.50, 0.80)` | New time window constant |
+| `__main__` | Add calls to new analysis functions after LOSO | Drive electrode selection, t-test, importance |
 
-## Architectural Patterns
+### What Is New (Added)
 
-### Pattern 1: Per-Component Feature Extractor
-
-**What:** Each ERP component is a function `(avg_erp, times) -> (feat, names)`. Fusion is `np.concatenate`.
-**When to use:** Always. Enables ablation (P300-only vs P300+N200 vs fused conditions).
-**Trade-offs:** Slight indirection, but toggling components requires no logic changes.
-
-```python
-def extract_p300_features(avg_erp, times):
-    # avg_erp: (128, n_times), times: (n_times,)
-    mask = (times >= 0.25) & (times <= 0.50)
-    win = avg_erp[:, mask]
-    mean_amp = win.mean(axis=1)               # (128,)
-    peak_amp = win.max(axis=1)                # (128,)
-    peak_lat = times[mask][win.argmax(axis=1)]  # (128,)
-    feat = np.concatenate([mean_amp, peak_amp, peak_lat])
-    names = ([f"p300_mean_ch{i}" for i in range(128)] +
-             [f"p300_peak_ch{i}" for i in range(128)] +
-             [f"p300_lat_ch{i}"  for i in range(128)])
-    return feat, names
-
-def extract_n200_features(avg_erp, times):
-    mask = (times >= 0.10) & (times <= 0.25)
-    feat = avg_erp[:, mask].mean(axis=1)     # (128,)
-    names = [f"n200_mean_ch{i}" for i in range(128)]
-    return feat, names
-```
-
-### Pattern 2: Condition-Loop with Subject-Aligned Fusion
-
-**What:** Run feature extraction per condition, intersect subject sets, then hstack.
-**When to use:** Multi-condition paradigms (hcue/fcue/scue).
-**Trade-offs:** Reduces n_subjects to those present in all conditions; wider feature vector captures condition-specific markers.
-
-```python
-cond_data = {}  # cond -> {sub_id: (feat_vec, label)}
-for cond in ["hcue", "fcue", "scue"]:
-    cond_data[cond] = load_erp_features(cond)  # returns dict keyed by sub_id
-
-common_ids = sorted(
-    set(cond_data["hcue"]) & set(cond_data["fcue"]) & set(cond_data["scue"])
-)
-X_fused = np.array([
-    np.concatenate([cond_data[c][sid][0] for c in ["hcue", "fcue", "scue"]])
-    for sid in common_ids
-])
-y = np.array([cond_data["hcue"][sid][1] for sid in common_ids])
-```
-
-### Pattern 3: Permutation Test Outside LOSO
-
-**What:** Run LOSO once for observed BA. Shuffle labels 1000x, re-run LOSO each time, compute p-value.
-**When to use:** Always for statistical validation.
-**Trade-offs:** 1000x LOSO cost. Acceptable at n=52 with simple LR pipeline (~seconds per fold).
-
-```python
-def permutation_test_loso(X, y, ids, pipe, n_perm=1000, seed=42):
-    rng = np.random.default_rng(seed)
-    obs_ba, _ = run_loso(X, y, ids, pipe)
-    null_bas = [run_loso(X, rng.permutation(y), ids, pipe)[0]
-                for _ in range(n_perm)]
-    p = (np.sum(np.array(null_bas) >= obs_ba) + 1) / (n_perm + 1)
-    return obs_ba, p, np.array(null_bas)
-```
+| Element | Location | Purpose |
+|---------|----------|---------|
+| `LPP_WIN = (0.50, 0.80)` | config block | LPP time window |
+| `select_electrodes(X, y, k)` | `run_modma_erp.py` | Rank channels by univariate t-stat |
+| `time_window_ttest(avg_erps, y, times)` | `run_modma_erp.py` | MDD vs HC t-stat at each time point |
+| `feature_importance(X, y, feat_names)` | `run_modma_erp.py` | LinearSVC coef_ weights, ranked |
 
 ## Data Flow
 
 ```
 [ERP_DIR/*.raw]
     ↓
-erp_io.py: load_erp_epochs(condition)
-    per subject: filter(0.5-40Hz) → epoch(tmin=-0.1, tmax=0.5)
-                 baseline(-0.1,0) → reject(eeg=150µV) → require ≥10 trials
-    ↓ dict[sub_id → (avg_erp: 128×n_times, times, label)]
-erp_features.py: extract_p300_features + extract_n200_features
-    P300: mean(128) + peak(128) + latency(128) = 384 dims
-    N200: mean(128) = 128 dims
-    per-condition feat vector: 512 dims
-    ↓ X_cond: (n_subjects, 512)
-fusion (inline): intersect sub_ids, np.hstack([X_hcue, X_fcue, X_scue])
-    ↓ X_fused: (n_subjects_common, 1536)
-run_loso(): StandardScaler → PCA(20) → LogisticRegression LOSO
-    ↓ (y_true, y_prob) per fold → BA, AUC
-permutation_test_loso(): 1000x shuffle y → re-run LOSO → p-value
-    ↓ BA, AUC, p-value
+load_erp_features()  — unchanged I/O path
+    per subject: filter → epoch(hcue) → avg_erp(128, n_times)
+    P300 window (250-500ms): mean per channel → (128,)
+    N200 window (100-250ms): mean per channel → (128,)
+    LPP window (500-800ms):  mean per channel → (128,)  ← NEW
+    feat = np.concatenate([p300_mean, n200_mean, lpp_mean])  → (384,)
+    ↓ X: (52, 384), y: (52,), ids: (52,)
+    also return avg_erps: (52, 128, n_times)  ← needed for t-test
+
+[Branch A: Classification with electrode selection]
+    select_electrodes(X, y, k=10)
+        t-stat per channel → top-k indices
+        X_reduced: (52, k*3)
+    run_loso(X_reduced, y, ids)
+    permutation_test_loso(X_reduced, y)
+        ↓ BA, p-value
+
+[Branch B: Time-Window Analysis]
+    time_window_ttest(avg_erps, y, times)
+        t-stat at each time point: (n_times,)
+        identify peak discriminative window
+        ↓ t_stats array, significant time points
+
+[Branch C: Feature Importance]
+    feature_importance(X, y, feat_names)
+        fit LinearSVC on full X (post-hoc only)
+        coef_ → (384,) weight vector
+        top-20 features by |weight|
+        ↓ ranked feature names + weights
 ```
 
-### Key Data Flows
+## Architectural Patterns
 
-1. **Load:** `.raw` → MNE EGI reader → filter → epoch per condition → avg across trials → (128, n_times) per subject
-2. **Feature:** avg_erp → P300 window (250-500ms) → mean/peak/latency per channel; N200 window (100-250ms) → mean per channel
-3. **Fusion:** align subjects across conditions by sub_id → hstack → (n_subjects_common, 1536)
-4. **Classify:** LOSO with existing `run_loso()` — no changes needed
-5. **Evaluate:** observed BA → 1000 label permutations → p-value
+### Pattern 1: Extend load_erp_features() for LPP
 
-## Integration Points with Existing run_modma_erp.py
+**What:** Add LPP_WIN constant; append lpp_mean to the concatenation. Minimal diff.
+**When to use:** Always — LPP is a table-stakes ERP component for emotional processing tasks.
+**Trade-offs:** 384-dim vs 128-dim. PCA(20) inside run_loso() absorbs the increase — no pipeline change needed.
 
-### What Stays (Unchanged)
+```python
+LPP_WIN = (0.50, 0.80)  # add to config block
 
-| Element | Location | Notes |
-|---------|----------|-------|
-| `load_erp_features()` | lines 33-94 | Keep for single-condition baseline; extend to return richer features |
-| `run_loso()` | lines 97-135 | Reuse directly — no changes needed |
-| Config constants | top of file | Add N200_WIN; extend P300 to include peak/latency |
-| `__main__` condition loop | lines 138-143 | Extend to collect per-condition data for fusion |
+# inside load_erp_features(), replace feat extraction:
+p300_mask = (times >= P300_WIN[0]) & (times <= P300_WIN[1])
+n200_mask = (times >= N200_WIN[0]) & (times <= N200_WIN[1])
+lpp_mask  = (times >= LPP_WIN[0])  & (times <= LPP_WIN[1])
+feat = np.concatenate([
+    avg_erp[:, p300_mask].mean(axis=1),  # (128,)
+    avg_erp[:, n200_mask].mean(axis=1),  # (128,)
+    avg_erp[:, lpp_mask].mean(axis=1),   # (128,)
+])  # (384,)
+```
 
-### What Changes (Modified)
+### Pattern 2: Electrode Selection via Univariate t-stat
 
-| Element | Change | Reason |
-|---------|--------|--------|
-| `load_erp_features()` | Add P300 peak/latency + N200 mean; return sub_id dict | Richer features; fusion needs sub_id alignment |
-| `__main__` | After per-condition loop, add fusion + fused LOSO + permutation test | Multi-condition experiment |
-| `CONDITION` global | Pass as parameter to `load_erp_features(condition)` | Avoid fragile global mutation |
+**What:** For each of the 128 channels, compute independent-samples t-stat between MDD and HC. Select top-k by |t|.
+**When to use:** Before LOSO when feature dimensionality is high relative to n_subjects (52 subjects, 384 dims).
+**Trade-offs:** Univariate selection ignores channel interactions. For interpretability only — if used for BA claims, must be inside LOSO folds to avoid leakage.
 
-### What Is New (Added)
+```python
+from scipy.stats import ttest_ind
 
-| Element | Where | Purpose |
-|---------|-------|---------|
-| `N200_WIN = (0.10, 0.25)` | config block | N200 time window |
-| `extract_p300_features(avg_erp, times)` | `erp_features.py` | Modular P300 extractor |
-| `extract_n200_features(avg_erp, times)` | `erp_features.py` | N200 extractor |
-| `permutation_test_loso(X, y, ids, pipe, n_perm)` | `erp_evaluate.py` | Statistical validation |
-| Fusion + alignment block | `run_modma_erp.py __main__` | Intersect subjects, hstack conditions |
+def select_electrodes(X, y, k=10):
+    # X: (n_subjects, n_features), features ordered as [p300_ch0..127, n200_ch0..127, lpp_ch0..127]
+    t_stats = np.array([
+        ttest_ind(X[y==1, j], X[y==0, j]).statistic
+        for j in range(X.shape[1])
+    ])
+    top_idx = np.argsort(np.abs(t_stats))[-k:]
+    return top_idx, t_stats
+```
+
+### Pattern 3: Time-Window t-test
+
+**What:** Compute MDD vs HC t-stat at every time point. Identifies which milliseconds are most discriminative.
+**When to use:** Exploratory analysis to validate P300/N200/LPP window choices.
+**Trade-offs:** Multiple comparisons across ~150 time points. Report with FDR correction or explicit uncorrected caveat.
+
+```python
+def time_window_ttest(avg_erps, y, times):
+    # avg_erps: (n_subjects, 128, n_times)
+    # collapse to mean across all channels (or parietal subset)
+    grand = avg_erps.mean(axis=1)  # (n_subjects, n_times)
+    t_stats = np.array([
+        ttest_ind(grand[y==1, t], grand[y==0, t]).statistic
+        for t in range(len(times))
+    ])
+    return t_stats  # (n_times,)
+```
+
+### Pattern 4: Feature Importance via SVM Weights
+
+**What:** Fit LinearSVC on full dataset, extract coef_ as feature weights. Rank by absolute value.
+**When to use:** Post-hoc interpretation after LOSO confirms significance. Not for selecting features used in the reported BA.
+**Trade-offs:** Fitted on full data — valid for interpretation, not for performance claims.
+
+```python
+from sklearn.svm import LinearSVC
+
+def feature_importance(X, y, feat_names):
+    X_s = StandardScaler().fit_transform(X)
+    svm = LinearSVC(C=1.0, class_weight="balanced", max_iter=5000)
+    svm.fit(X_s, y)
+    ranked = sorted(zip(feat_names, svm.coef_[0]),
+                    key=lambda x: abs(x[1]), reverse=True)
+    return ranked
+```
 
 ## Build Order
 
 Dependencies dictate this sequence:
 
-1. **Extend `load_erp_features(condition)`** — add N200_WIN, return richer P300 features (peak, latency) + N200 mean. Return dict keyed by sub_id. Verify per-condition BA holds or improves.
+1. **Extend `load_erp_features()` with LPP** — add `LPP_WIN`, extend feat to 384-dim. Run hcue LOSO to confirm BA does not regress below 0.670. Foundation for all other v3.0 work.
 
-2. **Add `permutation_test_loso()`** — depends only on existing `run_loso()`. Run on single-condition results first to validate p-value logic before fusion.
+2. **Add `time_window_ttest()`** — depends only on avg_erp arrays from step 1. Refactor load loop to also return avg_erps array. No classification dependency.
 
-3. **Add fusion block in `__main__`** — collect per-condition dicts, intersect sub_ids, hstack, call `run_loso()` + `permutation_test_loso()`. Depends on steps 1 and 2.
+3. **Add `select_electrodes()`** — depends on X from step 1. Run LOSO on electrode-reduced X to compare BA vs full 384-dim.
 
-4. **Extract to `erp_features.py` / `erp_evaluate.py`** — only if `run_modma_erp.py` exceeds ~300 lines. Not required for correctness.
+4. **Add `feature_importance()`** — depends on X from step 1 and confirmed LOSO significance. Last because it is post-hoc interpretation, not a classification step.
 
 ## Anti-Patterns
 
-### Anti-Pattern 1: Re-epoching Inside Permutation Loop
+### Anti-Pattern 1: Electrode Selection Outside LOSO Folds (for BA claims)
 
-**What people do:** Call `load_erp_features()` (MNE I/O + epoching) inside each permutation iteration.
-**Why it's wrong:** ~5s/subject × 52 subjects × 1000 permutations = ~72 hours.
-**Do this instead:** Load features once. Permutation loop only shuffles `y` and re-runs `run_loso()`.
+**What people do:** Select top-k electrodes on full dataset, then report LOSO BA on the reduced set.
+**Why it's wrong:** Test subject's data influenced electrode selection — data leakage inflates BA.
+**Do this instead:** For BA claims, wrap electrode selection inside LOSO folds. For interpretability only, full-dataset selection is acceptable with explicit caveat.
 
-### Anti-Pattern 2: Subject Misalignment in Fusion
+### Anti-Pattern 2: Re-epoching for Time-Window t-test
 
-**What people do:** Assume all subjects appear in all three conditions; hstack without checking.
-**Why it's wrong:** Some subjects may have <10 trials in one condition and get dropped. Misaligned rows corrupt labels silently.
-**Do this instead:** Build a dict keyed by sub_id per condition, intersect keys, then align rows explicitly.
+**What people do:** Call `load_erp_features()` again inside `time_window_ttest()`, re-reading all .raw files.
+**Why it's wrong:** ~3-5s/subject × 52 subjects = unnecessary 3-4 minute wait.
+**Do this instead:** Refactor `load_erp_features()` to optionally return `avg_erps` array (52, 128, n_times) alongside X. Pass it to `time_window_ttest()` directly.
 
-### Anti-Pattern 3: Global CONDITION Variable Mutation
+### Anti-Pattern 3: Using 640-dim Features (Phase 7 Regression)
 
-**What people do:** Rely on `CONDITION = cond` module-level mutation in the loop (existing code pattern).
-**Why it's wrong:** Fragile — any function reading the global gets wrong condition if called out of order.
-**Do this instead:** Pass `condition` as a parameter to `load_erp_features(condition)`.
+**What people do:** Re-apply the phase 7 640-dim extraction (P300 mean+peak+latency+AUC + N200 mean).
+**Why it's wrong:** Phase 7 showed 640-dim regressed BA from 0.670 to 0.554. Peak, latency, and AUC features add noise, not signal.
+**Do this instead:** Use mean amplitude only per component (128-dim each). 384-dim = P300_mean + N200_mean + LPP_mean.
 
-### Anti-Pattern 4: PCA Fitted on Full Dataset Before LOSO
+### Anti-Pattern 4: Modifying run_loso() or permutation_test_loso()
 
-**What people do:** Fit PCA on all subjects' features, then run LOSO on transformed data.
-**Why it's wrong:** PCA sees test subject's data during fitting — data leakage inflates BA.
-**Do this instead:** Keep PCA inside the sklearn Pipeline so it fits only on training folds (existing `run_loso()` already does this correctly).
-
-## Scaling Considerations
-
-| Scale | Architecture Adjustments |
-|-------|--------------------------|
-| 52 subjects (current) | In-memory numpy, sequential LOSO, 1000 permutations in minutes |
-| 200 subjects | Cache avg_erp arrays to .npz; joblib on permutation loop |
-| 1000+ subjects | Out of scope for this dataset |
-
-### Scaling Priorities
-
-1. **First bottleneck:** MNE .raw loading (~3-5s/subject × 52 × 3 conditions). Fix with .npz cache of avg_erp arrays keyed by (sub_id, condition).
-2. **Second bottleneck:** Permutation test (1000 × LOSO). Fix with `joblib.Parallel` on permutation loop.
+**What people do:** Adjust the pipeline or permutation logic to accommodate new features.
+**Why it's wrong:** These functions are validated and locked. Changes risk invalidating the p=0.021 baseline.
+**Do this instead:** Pass different X matrices to the unchanged functions. All variation is in feature extraction.
 
 ## Sources
 
 - `run_modma_erp.py` — direct code analysis (HIGH confidence)
-- `.planning/codebase/ARCHITECTURE.md` — resting-state pipeline patterns (HIGH confidence)
-- `.planning/research/ARCHITECTURE.md` (prior) — resting-state architecture patterns (HIGH confidence)
-- MNE-Python Epochs API — epoching, baseline, rejection (HIGH confidence)
-- Li et al. 2018 CMPB — P300 mean amplitude baseline referenced in existing script docstring (MEDIUM confidence)
+- `.planning/phases/07-p300-feature-enrichment-n200/07-01-SUMMARY.md` — 640-dim regression BA=0.554 (HIGH confidence)
+- `.planning/phases/08-permutation-test-validation/08-CONTEXT.md` — permutation test pattern (HIGH confidence)
+- `.planning/phases/09-multi-condition-fusion-contrast-features/09-01-SUMMARY.md` — fusion negative result (HIGH confidence)
+- `.planning/PROJECT.md` — v3.0 target features (HIGH confidence)
 
 ---
-*Architecture research for: ERP task-state MDD classification pipeline*
+*Architecture research for: ERP task-state MDD classification pipeline — v3.0 ERP Deep Analysis*
 *Researched: 2026-02-23*

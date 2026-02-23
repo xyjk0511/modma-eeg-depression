@@ -1,48 +1,53 @@
 # Feature Research
 
 **Domain:** ERP task-state MDD vs HC binary classification (dot-probe hcue/fcue/scue, 128-channel, MODMA)
-**Researched:** 2026-02-22
+**Researched:** 2026-02-23
 **Confidence:** MEDIUM (multiple web sources + official literature)
 
-## Context: What Already Exists
+## Context: What Already Exists (v2.0 Complete)
 
-Existing pipeline (resting-state): PSD band power, FAA, Riemannian covariance, theta/beta ratio, MNE epoch extraction.
-Current ERP baseline: hcue avg-ERP P300 mean amplitude per channel -> BA=0.670 (52 subjects, LOSO).
-This file covers ONLY new ERP task-state features to add on top of that baseline.
+| Feature | Status | Result |
+|---------|--------|--------|
+| hcue P300 mean amplitude per channel (128-dim, 250-500ms) | BUILT | BA=0.670, p=0.021 significant baseline |
+| P300 peak amplitude + latency + AUC + N200 mean (640-dim) | BUILT, REVERTED | BA=0.554 regressed vs baseline |
+| Multi-condition fusion hcue+fcue+scue (384-dim) | BUILT | BA=0.521, p=0.412 degraded |
+| Contrast scue-hcue (128-dim) | BUILT | BA=0.521, p=0.384 degraded |
+| LOSO cross-validation + permutation test (1000 perms) | BUILT | Infrastructure complete |
+
+Key lesson from v2.0: Adding more features (640-dim, 384-dim) consistently degrades performance vs 128-dim baseline. N=52 subjects with PCA(20) means the curse of dimensionality is the dominant constraint. The winning strategy for v3.0 is dimensionality REDUCTION (electrode subset) and INTERPRETATION (which features drive BA=0.670).
 
 ---
 
-## Feature Landscape
+## Feature Landscape: v3.0 NEW Features Only
 
-### Table Stakes (Expected in Any ERP-Based MDD Pipeline)
+### Table Stakes (Expected in Any ERP Deep Analysis)
 
-| Feature | Why Expected | Complexity | Notes |
-|---------|--------------|------------|-------|
-| P300 peak amplitude (per channel) | Most replicated ERP biomarker for MDD. MDD shows reduced P300 amplitude vs HC. Peak is more precise than mean. | LOW | avg_erp[:, p300_mask].max(axis=1) -- 128 dims. |
-| P300 peak latency (per channel) | MDD shows longer P300 latency. Frontal P300 latency is candidate biomarker of MDD (Frontiers 2022). Pz and C3 latency discriminates MDD subtypes. | LOW | times[p300_mask][argmax] -- 128 dims. |
-| P300 area under curve (per channel) | Integrates amplitude over time window. More robust than peak to noise. Standard in clinical ERP literature. | LOW | avg_erp[:, p300_mask].sum(axis=1) * dt -- 128 dims. |
-| N200 mean amplitude (100-250ms, per channel) | N200 reflects early attentional engagement. MDD shows altered N200 for emotional stimuli. Negative component; MDD shows reduced negativity for happy, enhanced for sad. | LOW | Same extraction as P300 but N200_WIN=(0.10, 0.25). 128 dims. |
-| N200 peak amplitude (per channel) | Peak captures the trough of N200. More sensitive than mean for detecting attentional bias differences. | LOW | avg_erp[:, n200_mask].min(axis=1) -- most negative point. 128 dims. |
-| Frontal/parietal ROI reduction | Full 128-channel vectors are high-dimensional for N=52. Literature identifies Fz, Cz, Pz as most discriminative for P300; frontal sites for N200. | LOW | Average over ROI channel groups. Reduces 128 dims to ~5-10. |
+| Feature | Why Expected | Complexity | Notes | Depends On |
+|---------|--------------|------------|-------|------------|
+| Electrode subset selection (Pz/P3/P4 parietal ROI) | P300 is maximal at parietal sites. Reducing 128 channels to 3-5 parietal electrodes cuts dimensionality 25x, directly addressing the curse-of-dimensionality that caused 640-dim regression. arXiv 2510.21969 uses {Fz, Pz, P3, P4, Oz} for small-sample P300 classification. | LOW | avg_erp[parietal_idx, p300_mask].mean(axis=1) shape (3,). No PCA needed at 3-dim. | Existing 128-dim pipeline; requires EGI montage channel lookup |
+| Time-window t-test analysis (P300 latency band) | Identifies which 4ms time bins within 250-500ms are most discriminative between MDD and HC. Standard in ERP clinical literature. Provides scientific insight into whether MDD effect is early (250-350ms) or late (400-500ms). | LOW | scipy.stats.ttest_ind per time bin across subjects. Plot t-statistic vs time. No classifier needed. | Existing epoch data (avg_erp per subject) |
+| LR coef_ interpretation (per-channel weights) | LogisticRegression coef_ directly gives per-feature weights. For 128-dim P300 mean features, maps back to channel space showing which channels drive BA=0.670. Already available in existing pipeline with zero model changes. | LOW | Average coef_ across LOSO folds. Plot as topographic map or bar chart. | Existing LOSO pipeline (LR already used) |
+| Permutation importance (model-agnostic) | Shuffles one feature at a time, measures BA drop. Corrects for correlated features where raw coef_ can be misleading. Identifies which of the 128 channels are load-bearing vs noise. | MEDIUM | sklearn.inspection.permutation_importance inside LOSO loop on test fold. Aggregate across folds. | Existing LOSO pipeline |
 
-### Differentiators (Features That Can Push BA Above 0.70)
+### Differentiators (Can Provide Scientific Insight Beyond BA=0.670)
 
-| Feature | Value Proposition | Complexity | Notes |
-|---------|-------------------|------------|-------|
-| Multi-condition concatenation (hcue + fcue + scue) | Each condition captures different emotional processing: sad cues show enhanced P3 in MDD (negative bias), happy cues show reduced P1/P3 (positive blunting). ACM 2024: best accuracy 79.84% when all ERP components used as combined feature set. | MEDIUM | Compute features per condition, concatenate vectors. Requires >=10 trials per condition per subject. |
-| Condition contrast (scue - hcue) | MDD is hypersensitive to sad, hyposensitive to happy. Difference between sad and happy condition responses is a direct biomarker of asymmetric emotional bias. More informative than either condition alone. | LOW | feat_scue - feat_hcue per feature type. ~128 dims. Requires multi-condition. |
-| P300 topographic gradient (frontal/parietal ratio) | MDD shows altered fronto-parietal P300 distribution. Ratio of frontal to parietal P300 amplitude captures this spatial shift. | LOW | mean(frontal_ch) / mean(parietal_ch) per condition. ~3 dims. |
-| N200 latency (per channel) | Latency of N200 reflects speed of early attentional capture. MDD shows altered timing of early emotional processing. Complements amplitude. | LOW | times[n200_mask][argmin] -- 128 dims. |
-| Single-trial variability (std across trials) | MDD shows increased trial-to-trial variability in ERP responses, reflecting unstable attentional engagement. Mean ERP discards this signal. | MEDIUM | data.std(axis=0)[:, p300_mask].mean(axis=1). Requires keeping raw trial data in memory. |
+| Feature | Value Proposition | Complexity | Notes | Depends On |
+|---------|-------------------|------------|-------|------------|
+| Parietal-only classifier (3-dim: Pz/P3/P4 mean) | If 3 parietal channels achieve BA >= 0.670, proves signal is spatially concentrated and clinically interpretable. Eliminates need for PCA. Directly publishable finding. | LOW | feat = avg_erp[parietal_idx, p300_mask].mean(axis=1) shape (3,). StandardScaler + LR(C=1.0). No PCA. | Electrode subset selection (channel index lookup) |
+| Time-window ablation (50ms bins) | Splits 250-500ms into 5 x 50ms bins, runs LOSO on each bin mean amplitude. Identifies peak discriminative window with classifier-based evidence (complements t-test). | LOW | Loop over [(250,300),(300,350),(350,400),(400,450),(450,500)]. Each bin: 128-dim mean -> LOSO BA. | Existing pipeline |
+| Frontal vs parietal ROI comparison | Tests whether frontal (Fz, F3, F4) or parietal (Pz, P3, P4) channels carry more MDD signal. Informs electrode placement for future clinical tools. | LOW | Run LOSO separately on frontal-ROI and parietal-ROI feature vectors. Compare BA. | Electrode subset selection |
+| N200 parietal-only (6-dim: P300+N200 at Pz/P3/P4) | N200 at parietal sites for emotional stimuli. If parietal N200 adds signal beyond P300, concatenate [P300_parietal, N200_parietal] = 6-dim. Low dimensionality avoids the regression seen with 640-dim. | LOW | Same extraction as P300 parietal but N200_WIN=(0.10, 0.25). Test 6-dim vs 3-dim. | Electrode subset selection |
 
-### Anti-Features (Commonly Considered, Often Problematic)
+### Anti-Features (Confirmed Problematic by v2.0 Results)
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| Full 128-channel raw ERP vectors without ROI reduction | Maximum information retention | 128ch x 3 features x 3 conditions = 1152 dims for N=52. Extreme curse of dimensionality. | ROI-averaged features + PCA(20). |
-| Per-trial classification | More training samples | Trials from same subject are correlated. Trial-level accuracy is inflated. Same problem as window-level for resting-state. | Subject-level LOSO with avg-ERP features. |
-| Condition averaging across hcue/fcue/scue | Simplifies feature space | Destroys condition-specific emotional processing differences that are the main signal. | Concatenate per-condition features or compute contrasts. |
-| Deep learning on ERP waveforms | Papers report high accuracy | N=52 is far too small for cross-subject generalization. | LR/SVM with PCA on handcrafted ERP features. |
+| Full 640-dim enriched features (P300 peak + latency + AUC + N200 mean) | Maximum information | Phase 7 proved this: BA dropped from 0.670 to 0.554. PCA(20) on 640-dim loses the spatial structure that makes 128-dim work. | Parietal ROI (3-dim) same information, no dimensionality problem. |
+| Multi-condition fusion (384-dim) | More signal from emotional conditions | Phase 9 proved this: BA dropped from 0.670 to 0.521. fcue/scue add noise, not signal. | hcue single-condition only. |
+| Condition contrast scue-hcue | Direct emotional bias biomarker | Phase 9 proved this: BA=0.521. Difference signal is noisier than raw hcue. | hcue single-condition only. |
+| LPP component (500-800ms) | Theoretically captures sustained emotional processing | medrxiv 2020 found NO evidence for reduced LPP in MDD. Low prior probability. | P300 window (250-500ms) already captures the relevant signal. |
+| Deep learning on ERP waveforms | Papers report high accuracy | N=52 is far too small for cross-subject generalization. | LR/SVM with low-dim handcrafted features. |
+| Per-trial classification | More training samples | Trial-level accuracy is inflated (within-subject correlation). | Subject-level LOSO only. |
 
 ---
 
@@ -50,37 +55,34 @@ This file covers ONLY new ERP task-state features to add on top of that baseline
 
 
 
-### Dependency Notes
-
-- N200 and P300 share the same epoch data -- extract both in one pass to avoid reloading raw files.
-- Multi-condition concatenation requires all 3 conditions to have enough trials. Subjects with <10 trials in any condition must be excluded (may reduce N slightly).
-- Single-trial variability conflicts with current memory management (data deleted after avg_erp). Requires architectural change.
-- ROI reduction should happen before PCA -- it encodes domain knowledge about which channels matter.
+Dependency Notes:
+- Electrode subset selection is the prerequisite for all ROI-based features. Requires EGI montage channel lookup (see Implementation Note).
+- Time-window t-test is independent of the classifier. Can run in parallel with electrode selection work.
+- LR coef_ is already available in the existing pipeline with zero model changes. Lowest-cost interpretation feature.
+- Permutation importance must be computed inside the LOSO loop on the test fold, not after. Requires architectural change to run_loso().
+- N200 parietal-only depends on electrode subset selection being done first.
 
 ---
 
 ## MVP Definition
 
-### Launch With (v1) -- Enrich P300, Add N200, Multi-Condition
+### Launch With (v3.0 Phase 10) -- Electrode Subset + Interpretation
 
-- [ ] P300 peak amplitude per channel (LOW)
-- [ ] P300 peak latency per channel (LOW)
-- [ ] P300 area under curve per channel (LOW)
-- [ ] N200 mean + peak amplitude per channel 100-250ms (LOW)
-- [ ] Multi-condition concatenation: hcue + fcue + scue (MEDIUM)
-- [ ] Condition contrast scue - hcue: direct negative-bias biomarker (LOW, requires multi-condition)
+- [ ] Identify Pz/P3/P4 channel indices in 128-ch EGI montage -- prerequisite for all ROI features
+- [ ] Parietal-only classifier (3-dim) -- tests if dimensionality reduction recovers or exceeds BA=0.670
+- [ ] Time-window t-test (per 4ms bin, 250-500ms) -- identifies peak discriminative window, scientific insight
+- [ ] LR coef_ interpretation across LOSO folds -- shows which channels drive BA=0.670, zero implementation cost
 
-### Add After Validation (v1.x)
+### Add After Validation (v3.1)
 
-- [ ] ROI-averaged features at Fz/Cz/Pz groups
-- [ ] Condition contrast fcue - hcue
-- [ ] P300 topographic gradient frontal/parietal ratio
-- [ ] N200 latency per channel
+- [ ] Time-window ablation (50ms bins) -- trigger: parietal ROI validates, want to know if sub-window improves further
+- [ ] Permutation importance (sklearn) -- trigger: LR coef_ shows unexpected channels, need model-agnostic confirmation
+- [ ] Frontal vs parietal ROI comparison -- trigger: interpretation shows frontal channels are important
 
-### Future Consideration (v2+)
+### Future Consideration (v3.2+)
 
-- [ ] Single-trial variability -- requires memory architecture change
-- [ ] Fusion with resting-state features
+- [ ] N200 parietal-only (6-dim) -- defer: only worth testing if 3-dim parietal P300 achieves BA >= 0.670
+- [ ] LPP 500-800ms -- defer: medrxiv 2020 found no evidence for reduced LPP in MDD; low prior probability
 
 ---
 
@@ -88,22 +90,31 @@ This file covers ONLY new ERP task-state features to add on top of that baseline
 
 | Feature | Classification Value | Implementation Cost | Priority |
 |---------|---------------------|---------------------|----------|
-| P300 peak amplitude per channel | HIGH | LOW | P1 |
-| P300 peak latency per channel | HIGH | LOW | P1 |
-| N200 mean amplitude per channel | HIGH | LOW | P1 |
-| P300 area under curve | MEDIUM | LOW | P1 |
-| Multi-condition concatenation | HIGH | MEDIUM | P1 |
-| Condition contrast scue - hcue | HIGH | LOW | P1 |
-| N200 peak amplitude | MEDIUM | LOW | P2 |
-| N200 latency | MEDIUM | LOW | P2 |
-| ROI reduction Fz/Cz/Pz groups | MEDIUM | LOW | P2 |
-| P300 topographic gradient | MEDIUM | LOW | P2 |
-| Single-trial variability | MEDIUM | HIGH | P3 |
+| Parietal ROI 3-dim (Pz/P3/P4) | HIGH -- directly addresses dimensionality root cause | LOW | P1 |
+| Time-window t-test | MEDIUM -- scientific insight, not classifier improvement | LOW | P1 |
+| LR coef_ interpretation | MEDIUM -- interpretability, not BA improvement | LOW | P1 |
+| Time-window ablation (50ms bins) | MEDIUM -- may find tighter window | LOW | P2 |
+| Permutation importance | MEDIUM -- model-agnostic confirmation | MEDIUM | P2 |
+| Frontal vs parietal comparison | LOW -- scientific, not performance | LOW | P2 |
+| N200 parietal 6-dim | LOW -- v2.0 showed N200 does not help at 128-dim | LOW | P3 |
+| LPP 500-800ms | LOW -- literature contradicts effect in MDD | LOW | P3 |
 
-**Priority key:**
-- P1: Must have -- directly addresses milestone goal
-- P2: Should have -- adds spatial/temporal specificity after P1 validated
-- P3: Nice to have -- marginal gains, higher complexity
+Priority key:
+- P1: Must have -- directly addresses v3.0 milestone goal
+- P2: Should have -- adds interpretability after P1 validated
+- P3: Nice to have -- low prior probability based on v2.0 results and literature
+
+---
+
+## Critical Implementation Note: EGI 128-Channel Montage
+
+The MODMA data uses EGI 128-channel Hydrocel montage. Channel names are numeric (1-128) or EGI-specific labels, NOT standard 10-20 names. Pz/P3/P4 must be identified by:
+
+1. raw.get_montage() to get channel positions
+2. Match by spatial coordinates to standard 10-20 positions
+3. Or use mne.channels.make_standard_montage("GSN-HydroCel-128") and find nearest channels to Pz/P3/P4 coordinates
+
+This is a non-trivial lookup step that must be done before any ROI feature extraction. Failure to correctly identify parietal channels will silently produce wrong features with no error.
 
 ---
 
@@ -111,33 +122,33 @@ This file covers ONLY new ERP task-state features to add on top of that baseline
 
 | Approach | Reported BA | Features | Notes |
 |----------|-------------|----------|-------|
-| P300 mean amplitude only (current) | 0.670 | 128-dim mean 250-500ms, hcue only | Our baseline |
-| P300 amplitude + latency + area | ~0.70-0.75 estimated | 3 features x key channels | Standard clinical ERP |
-| Multi-condition ERP fusion | 79.84% accuracy | All ERP components, all conditions | ACM 2024 |
-| P300 + N200 combined | ~0.72-0.78 estimated | Both components, frontal/parietal | Multiple MDD ERP studies |
-| Realistic cross-subject ERP | 0.65-0.80 | Varies | With proper LOSO evaluation |
+| P300 mean amplitude only (current baseline) | 0.670 | 128-dim mean 250-500ms, hcue only | Our v2.0 result |
+| P300 enriched 640-dim (v2.0 Phase 7) | 0.554 | peak+latency+AUC+N200, 128ch | Regressed -- reverted |
+| Multi-condition fusion (v2.0 Phase 9) | 0.521 | 384-dim hcue+fcue+scue | Degraded |
+| Parietal ROI 5-ch (Fz,Pz,P3,P4,Oz) | ~0.65-0.75 estimated | Small-sample P300 BCI literature | arXiv 2510.21969 -- MEDIUM confidence |
+| Auditory P300 at Pz/Cz for MDD | ~0.70 reported | 2-3 parietal channels | Frontiers Psychiatry 2022 -- MEDIUM confidence |
+| SVM-RFE feature selection on EEG depression | 93.54% accuracy | Selected features | MDPI 2024 -- LOW confidence (different task/dataset) |
 
-**Key literature findings:**
-- MDD shows reduced P300 amplitude and longer P300 latency vs HC -- HIGH confidence (replicated across multiple studies including iSPOT-D n>1000)
-- Frontal P300 latency is candidate biomarker of MDD -- MEDIUM confidence (Frontiers Human Neuroscience 2022)
-- Auditory P300 latency at C3 and Pz discriminates MDD subtypes -- MEDIUM confidence (Frontiers Psychiatry 2022)
-- MDD shows enhanced P3 to sad cues and reduced P1/P3 to happy cues in dot-probe tasks -- MEDIUM confidence (Frontiers Human Neuroscience 2020)
-- N200 reflects early attentional bias; MDD shows reduced N200 for pleasant stimuli -- LOW confidence (single older study + 2014 replication)
-- Best accuracy 79.84% when all ERP components used as combined feature set -- MEDIUM confidence (ACM 2024)
+Key literature findings:
+- P300 is maximal at parietal sites (Pz strongest) -- HIGH confidence (Wikipedia P300, clinical consensus)
+- Parietal subset {Fz, Pz, P3, P4, Oz} sufficient for cross-dataset P300 classification -- MEDIUM confidence (arXiv 2510.21969, 2024)
+- LPP reduction in MDD: medrxiv 2020 preprint found NO evidence for reduced LPP in MDD -- MEDIUM confidence (contradicts earlier claims)
+- Permutation importance corrects for correlated features vs raw SVM/LR weights -- HIGH confidence (Bioinformatics 2010, sklearn docs)
+- SVM-RFE feature selection improves EEG depression classification -- MEDIUM confidence (MDPI Applied Sciences 2024)
 
 ---
 
 ## Sources
 
-- [Electrophysiological biomarkers and age in MDD (Frontiers Human Neuroscience, 2022)](https://www.frontiersin.org/journals/human-neuroscience/articles/10.3389/fnhum.2022.1055685/full) -- MEDIUM confidence
-- [P300 ERPs in MDD subtypes (Frontiers Psychiatry, 2022)](https://www.frontiersin.org/articles/10.3389/fpsyt.2022.1021365) -- MEDIUM confidence
-- [Negative Bias in MDD dot-probe ERP (Frontiers Human Neuroscience, 2020)](https://www.frontiersin.org/articles/10.3389/fnhum.2020.593010/full) -- MEDIUM confidence
-- [Decoding Functional Brain Data for Emotion Recognition (ACM, 2024)](https://dl.acm.org/doi/10.1145/3657638) -- MEDIUM confidence
-- [Depressive states and frontal-parietal ERPs during emotional stimuli (Nature Sci Rep, 2023)](https://www.nature.com/articles/s41598-023-44368-0) -- MEDIUM confidence
-- [Emotional Conflict Processing in MDD: N450 and P300 (Frontiers Human Neuroscience, 2018)](https://www.frontiersin.org/articles/10.3389/fnhum.2018.00214/full) -- MEDIUM confidence
-- [N200 component of ERPs in depression (Biological Psychiatry, 1993)](https://www.biologicalpsychiatryjournal.com/article/0006-3223(93)90122-T/fulltext) -- LOW confidence (foundational but old)
-- [P300 latency as indicator of severity in MDD (PMC, 2016)](https://pmc.ncbi.nlm.nih.gov/articles/PMC4866344/) -- MEDIUM confidence
+- [Adaptive Split-MMD for Small-Sample P300 (arXiv 2510.21969, 2024)](https://arxiv.org/html/2510.21969v1) -- MEDIUM confidence
+- [Data-Driven ROI Selection for P300 BCIs (arXiv 2511.02735, 2024)](https://arxiv.org/html/2511.02735v1) -- MEDIUM confidence
+- [Impact of Feature Selection on EEG Depression Detection (MDPI Applied Sciences, 2024)](https://www.mdpi.com/2076-3417/14/22/10532) -- MEDIUM confidence
+- [Lack of Evidence for Reduced LPP in MDD (medrxiv, 2020)](https://www.medrxiv.org/content/10.1101/2020.04.29.20085571v2.full.pdf+html) -- MEDIUM confidence
+- [Permutation importance: a corrected feature importance measure (Bioinformatics, 2010)](https://academic.oup.com/bioinformatics/article/26/10/1340/193348) -- HIGH confidence
+- [EEG-based MDD recognition by neural oscillation and asymmetry (Frontiers Neuroscience, 2024)](https://www.frontiersin.org/articles/10.3389/fnins.2024.1362111/full) -- MEDIUM confidence
+- [SHAP-based interpretable EEG framework for depression (J Neuroeng Rehab, 2025)](https://jneuroengrehab.biomedcentral.com/articles/10.1186/s12984-025-01645-5) -- MEDIUM confidence
+- [P300 (neuroscience) -- Wikipedia](https://en.wikipedia.org/wiki/P300_(neuroscience)) -- HIGH confidence (consensus summary)
 
 ---
-*Feature research for: ERP task-state MDD vs HC classification (MODMA dot-probe, 128-channel)*
-*Researched: 2026-02-22*
+*Feature research for: ERP task-state MDD vs HC classification (MODMA dot-probe, 128-channel) -- v3.0 ERP Deep Analysis*
+*Researched: 2026-02-23*

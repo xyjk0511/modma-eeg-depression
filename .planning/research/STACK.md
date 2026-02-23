@@ -229,3 +229,71 @@ The existing skeleton already has the correct structure. Changes are purely addi
 
 ---
 *ERP stack addendum researched: 2026-02-22*
+
+---
+
+## v3.0 ERP Deep Analysis — Stack Additions
+
+**Domain:** N200/LPP component extraction, electrode selection, time-window t-test, feature importance
+**Researched:** 2026-02-23
+**Confidence:** HIGH (all libraries verified installed)
+
+### Verdict: Zero New Library Installs Required
+
+All four v3.0 features are fully covered by the existing environment.
+
+| Capability | API | Library (installed) |
+|------------|-----|---------------------|
+| N200 mean amplitude (100–250ms) | `evoked.copy().crop(0.10, 0.25).data.mean(axis=1)` | MNE 1.11.0 |
+| LPP mean amplitude (500–800ms) | `evoked.copy().crop(0.50, 0.80).data.mean(axis=1)` | MNE 1.11.0 |
+| Electrode ranking by discriminability | `f_classif(X, y)` then `np.argsort(f_scores)[-k:]` | sklearn 1.8.0 + NumPy 2.4.2 |
+| Group t-test on time-window amplitudes | `scipy.stats.ttest_ind(mdd_vals, hc_vals)` | SciPy 1.17.0 |
+| SVM weight-based importance | `clf.named_steps['svm'].coef_.ravel()` | sklearn 1.8.0 |
+| Permutation importance (model-agnostic) | `sklearn.inspection.permutation_importance(clf, X, y, n_repeats=30)` | sklearn 1.8.0 |
+| Importance bar charts | `seaborn.barplot` | seaborn 0.13.2 (installed) |
+
+---
+
+## v3.0 ERP Deep Analysis — Stack Additions
+
+**Domain:** N200/LPP component extraction, electrode selection, time-window t-test, feature importance
+**Researched:** 2026-02-23
+**Confidence:** HIGH (all libraries verified installed via `pip show`)
+
+### Verdict: Zero New Library Installs Required
+
+All four v3.0 features are fully covered by the existing environment.
+
+| Capability | API | Library (installed) |
+|------------|-----|---------------------|
+| N200 mean amplitude (100–250ms) | `evoked.copy().crop(0.10, 0.25).data.mean(axis=1)` | MNE 1.11.0 |
+| LPP mean amplitude (500–800ms) | `evoked.copy().crop(0.50, 0.80).data.mean(axis=1)` | MNE 1.11.0 |
+| Electrode ranking by discriminability | `f_classif(X, y)` then `np.argsort(f_scores)[-k:]` | sklearn 1.8.0 + NumPy 2.4.2 |
+| Group t-test on time-window amplitudes | `scipy.stats.ttest_ind(mdd_vals, hc_vals)` | SciPy 1.17.0 |
+| SVM weight-based importance | `clf.named_steps['svm'].coef_.ravel()` | sklearn 1.8.0 |
+| Permutation importance (model-agnostic) | `sklearn.inspection.permutation_importance(clf, X, y, n_repeats=30)` | sklearn 1.8.0 |
+| Importance bar charts | `seaborn.barplot` | seaborn 0.13.2 (installed) |
+
+### Critical Config Change (not a library change)
+
+LPP window (500–800ms) requires extending the epoch window. Current `run_modma_erp.py` has `TMAX=0.5` — must change to `TMAX=0.8`.
+
+### Key Notes
+
+- `f_classif` already imported in `modma_mdd_real_experiment.py` line 17 and called at line 709 — electrode selection reuses the exact same pattern
+- `sklearn.inspection.permutation_importance` stable since sklearn 0.22, confirmed in 1.8.0
+- Keep `n_jobs=1` inside `permutation_importance` to respect project's `n_jobs<=4` constraint
+- `scipy.stats.ttest_ind` is a direct import — `scipy` is already a transitive dependency
+
+### What NOT to Add
+
+| Avoid | Why |
+|-------|-----|
+| statsmodels | `scipy.stats.ttest_ind` covers all needed group comparisons |
+| shap | Overkill for linear SVM; `coef_` + `permutation_importance` is sufficient |
+| pingouin | Wraps scipy.stats; same functionality, extra dependency |
+| mne-features | Adds abstraction over MNE's direct `evoked.data` API; not needed |
+| neurokit2 | NumPy `argmax` is sufficient for peak detection |
+
+---
+*v3.0 ERP deep analysis stack addendum researched: 2026-02-23*
