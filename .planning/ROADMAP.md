@@ -155,6 +155,6 @@ Plans:
 | 4. Statistical Validation | 1/1 | Complete (negative) | 2026-02-22 |
 | 5. Confirmatory Replication | 2/2 | Complete (negative: BA=0.500) | 2026-02-22 |
 | 6. Feature Expansion | 2/2 | Complete (negative: BA=0.500) | 2026-02-22 |
-| 7. P300 Feature Enrichment + N200 | 0/1 | Pending | — |
-| 8. Permutation Test Validation | 1/1 | Complete    | 2026-02-23 |
-| 9. Multi-Condition Fusion | 0/1 | Pending | — |
+| 7. P300 Feature Enrichment + N200 | 1/1 | Complete (feature enrichment regressed; reverted to 128-dim p300_mean baseline BA=0.670) | 2026-02-23 |
+| 8. Permutation Test Validation | 1/1 | Complete (BA=0.670, p=0.021 — significant) | 2026-02-23 |
+| 9. Multi-Condition Fusion | 1/1 | Complete (fusion BA=0.521 negative; hcue single-condition is optimal) | 2026-02-23 |
