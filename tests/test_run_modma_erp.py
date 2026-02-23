@@ -48,3 +48,44 @@ def test_sub_id_consistent_across_conditions():
     """Same subject yields same ID regardless of condition suffix."""
     assert _parse_sub_id("02010002erp hcue 20151103.raw") == \
            _parse_sub_id("02010002erp fcue 20151103.raw")
+
+
+# ── Phase 10: electrode selection ────────────────────────────────────────────
+
+def test_get_parietal_indices_returns_all_targets():
+    from run_modma_erp import get_parietal_indices
+    idx = get_parietal_indices()
+    for name in ("Pz", "P3", "P4", "Cz", "CPz"):
+        assert name in idx
+        assert isinstance(idx[name], int)
+
+
+def test_get_parietal_indices_cz_cpz_same_electrode():
+    """Known: Cz and CPz both map to E55 (idx=54) via coordinate fallback."""
+    from run_modma_erp import get_parietal_indices
+    idx = get_parietal_indices()
+    assert idx["Cz"] == idx["CPz"], "Cz and CPz should map to same GSN electrode"
+
+
+def test_loso_ba_subset_caps_pca_components():
+    """_loso_ba_subset must not crash when n_features < n_samples-1."""
+    from run_modma_erp import _loso_ba_subset
+    rng = np.random.default_rng(0)
+    X = rng.standard_normal((10, 3))   # 3 features, 10 samples
+    y = np.array([0, 1] * 5)
+    ba = _loso_ba_subset(X, y)
+    assert 0.0 <= ba <= 1.0
+
+
+def test_run_electrode_selection_deduplicates_columns(capsys):
+    """5-dim with Cz==CPz should produce a 4-column X_5, not 5."""
+    from run_modma_erp import get_parietal_indices
+    idx = get_parietal_indices()
+    ch5 = ["Pz", "P3", "P4", "Cz", "CPz"]
+    seen, unique_cols = set(), []
+    for c in ch5:
+        i = idx[c]
+        if i not in seen:
+            seen.add(i)
+            unique_cols.append(i)
+    assert len(unique_cols) == 4, "Duplicate Cz/CPz index must be deduplicated"

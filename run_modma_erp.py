@@ -173,7 +173,7 @@ def permutation_test_subset(X, y, n_perm=1000, seed=42):
     return obs_ba, p_val
 
 
-def run_electrode_selection(X, y, ids):
+def run_electrode_selection(X, y, ids, ba_baseline=None, p_baseline=None):
     """Phase 10: compare 3-dim and 5-dim parietal subsets vs 128-dim baseline."""
     print("\n" + "="*50)
     print("Phase 10: Electrode Selection")
@@ -187,15 +187,25 @@ def run_electrode_selection(X, y, ids):
     ba3, p3 = permutation_test_subset(X_3, y, n_perm=1000)
 
     ch5 = ["Pz", "P3", "P4", "Cz", "CPz"]
-    X_5 = X[:, [idx[c] for c in ch5]]
-    print(f"\n5-dim {ch5}  shape={X_5.shape}")
+    # deduplicate indices while preserving order
+    seen, unique_cols = set(), []
+    for c in ch5:
+        i = idx[c]
+        if i not in seen:
+            seen.add(i)
+            unique_cols.append(i)
+    X_5 = X[:, unique_cols]
+    n_unique = len(unique_cols)
+    print(f"\n{n_unique}-dim {ch5} (unique cols={n_unique})  shape={X_5.shape}")
     ba5, p5 = permutation_test_subset(X_5, y, n_perm=1000)
 
+    ba_b = ba_baseline if ba_baseline is not None else 0.670
+    p_b  = p_baseline  if p_baseline  is not None else 0.021
     print("\n" + "="*50)
     print("Electrode Selection Results vs Baseline:")
-    print(f"  128-dim (baseline): BA=0.670  p=0.021")
+    print(f"  128-dim (baseline): BA={ba_b:.3f}  p={p_b:.4f}")
     print(f"  3-dim  (Pz/P3/P4): BA={ba3:.3f}  p={p3:.4f}")
-    print(f"  5-dim  (+Cz/CPz):  BA={ba5:.3f}  p={p5:.4f}")
+    print(f"  {n_unique}-dim  (+Cz/CPz):  BA={ba5:.3f}  p={p5:.4f}")
     print("="*50)
 
 
@@ -303,4 +313,5 @@ if __name__ == "__main__":
     permutation_test_loso(X_contrast, y_contrast, n_perm=1000)
 
     # Phase 10: Electrode Selection (reuse hcue X, y, ids from top of __main__)
-    run_electrode_selection(X, y, ids)
+    ba_base, p_base = permutation_test_loso(X, y, n_perm=1000)
+    run_electrode_selection(X, y, ids, ba_baseline=ba_base, p_baseline=p_base)

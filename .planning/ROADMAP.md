@@ -162,7 +162,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 10-01-PLAN.md — EGI channel lookup + 3-dim/5-dim parietal subset classifiers
+- [x] 10-01-PLAN.md — EGI channel lookup + 3-dim/5-dim parietal subset classifiers
 
 ### Phase 11: Time-Window Analysis
 **Goal**: 通过逐时间点 t-test 和 50ms bins 消融分类，识别 P300 窗口内最具判别力的时间段
