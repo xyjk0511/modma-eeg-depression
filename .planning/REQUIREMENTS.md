@@ -85,8 +85,8 @@
 
 ### 时间窗口分析（TWIN）
 
-- [ ] **TWIN-01**: 对 avg_erp（N×128×n_times）做逐时间点 MDD vs HC t-test，输出 t-stat vs time 图（纯描述性）
-- [ ] **TWIN-02**: 50ms bins 消融分类（5个窗口：250-300/300-350/350-400/400-450/450-500ms），每个窗口 128-dim LOSO BA
+- [x] **TWIN-01**: 对 avg_erp（N×128×n_times）做逐时间点 MDD vs HC t-test，输出 t-stat vs time 图（纯描述性）
+- [x] **TWIN-02**: 50ms bins 消融分类（5个窗口：250-300/300-350/350-400/400-450/450-500ms），每个窗口 128-dim LOSO BA
 
 ### 特征重要性（FIMP）
 
@@ -114,8 +114,8 @@
 | ELEC-01 | Phase 10 | Complete |
 | ELEC-02 | Phase 10 | Complete |
 | ELEC-03 | Phase 10 | Complete |
-| TWIN-01 | Phase 11 | Pending |
-| TWIN-02 | Phase 11 | Pending |
+| TWIN-01 | Phase 11 | Complete |
+| TWIN-02 | Phase 11 | Complete |
 | FIMP-01 | Phase 12 | Pending |
 
 **Coverage:**

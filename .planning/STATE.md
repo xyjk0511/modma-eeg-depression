@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** 深化 ERP 分析（更多成分、电极优化、时间窗口、特征解释），在 hcue P300 显著基线上进一步提升可解释性
-**Current focus:** v3.0 里程碑 — Phase 10 Electrode Selection
+**Current focus:** v3.0 里程碑 — Phase 11 Time-Window Analysis
 
 ## Current Position
 
-Phase: 10 — Electrode Selection
-Plan: 10-01 (complete)
+Phase: 11 — Time-Window Analysis
+Plan: 11-01 (complete)
 Status: Complete
-Last activity: 2026-02-23 — 10-01 electrode selection complete (5-dim BA=0.634 p=0.045)
+Last activity: 2026-02-23 — 11-01 time-window analysis complete (ttest_curve.png + bin_ablation.csv)
 
-Progress: [███░░░░░░░] 33%  (v3.0: 1/3 phases)
+Progress: [██████░░░░] 67%  (v3.0: 2/3 phases)
 
 ## v2.0 Final Results
 
@@ -92,6 +92,9 @@ Recent decisions affecting current work:
 - 06-02: TDBRAIN: 356 subjects (312 MDD, 47 HC), 1780 windows, 15 features
 - [Phase 10]: 10-01: EGI HydroCel-128 uses E1-E128 naming; coordinate-distance fallback maps Pz->E62, P3->E60, P4->E85, Cz/CPz->E55
 - [Phase 10]: 10-01: 5-dim parietal subset (BA=0.634, p=0.045) is significant; 3-dim (BA=0.521, p=0.430) is not
+- [Phase 11]: 11-01: load_erp_timeseries retains avg_erp (128 x n_times) per subject alongside P300 feature vector
+- [Phase 11]: 11-01: C=1.0 default preserves backward compat; bin ablation uses C=0.1 for 128-dim input
+- [Phase 11]: 11-01: Half-open bin intervals [t0, t1) for bins 1-4; closed [t0, t1] for last bin to include 500ms
 
 ### Pending Todos
 
@@ -105,5 +108,5 @@ None — all phases complete.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 10-01-PLAN.md (electrode selection — 5-dim BA=0.634 p=0.045)
-Resume file: .planning/ROADMAP.md — continue Phase 10 or start Phase 11
+Stopped at: Completed 11-01-PLAN.md (time-window analysis — ttest_curve.png + bin_ablation.csv)
+Resume file: .planning/ROADMAP.md — Phase 11 complete, start Phase 12 or next v3.0 phase

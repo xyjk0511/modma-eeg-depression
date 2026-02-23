@@ -16,7 +16,7 @@ This project fixes the QC bottleneck that drops 80% of subjects (11/53 retained)
 - [x] **Phase 8: Permutation Test Statistical Validation** - 验证 hcue 丰富特征结果统计显著（p<0.05）
 - [x] **Phase 9: Multi-Condition Fusion + Contrast Features** - 融合三条件特征，BA > 0.70，p < 0.05
 - [x] **Phase 10: Electrode Selection** - 识别 EGI 顶叶通道索引，验证 3-dim 和 5-dim 顶叶子集分类器 (completed 2026-02-23)
-- [ ] **Phase 11: Time-Window Analysis** - 逐时间点 t-test 描述性分析 + 50ms bins 消融分类
+- [x] **Phase 11: Time-Window Analysis** - 逐时间点 t-test 描述性分析 + 50ms bins 消融分类 (completed 2026-02-23)
 - [ ] **Phase 12: Feature Importance** - LR coef_ 反投影到通道空间，输出 128 通道权重排名
 
 ## Phase Details
@@ -204,5 +204,5 @@ Plans:
 | 8. Permutation Test Validation | 1/1 | Complete (BA=0.670, p=0.021 — significant) | 2026-02-23 |
 | 9. Multi-Condition Fusion | 1/1 | Complete | 2026-02-23 |
 | 10. Electrode Selection | 1/1 | Complete    | 2026-02-23 |
-| 11. Time-Window Analysis | 0/1 | Not started | - |
+| 11. Time-Window Analysis | 1/1 | Complete   | 2026-02-23 |
 | 12. Feature Importance | 0/1 | Not started | - |
