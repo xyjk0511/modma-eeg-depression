@@ -6,7 +6,7 @@ Reference: Li et al. 2018, CMPB — ERP waveform shape features for MDD classifi
 
 Usage: python run_modma_erp.py
 """
-import os, gc, warnings, numpy as np
+import os, gc, re, warnings, numpy as np
 from pathlib import Path
 from joblib import Parallel, delayed
 
@@ -48,7 +48,8 @@ def load_erp_features():
         else:
             continue
 
-        sub_id = fname.split("erp")[0].strip().replace("_", "")
+        m = re.match(r'(\d{8})', fname)
+        sub_id = m.group(1) if m else fname.split("erp")[0].strip().replace("_", "")
 
         try:
             raw = mne.io.read_raw_egi(str(fpath), preload=True, verbose=False)
@@ -57,6 +58,7 @@ def load_erp_features():
 
             events, event_id = mne.events_from_annotations(raw, verbose=False)
             if CONDITION not in event_id:
+                print(f"  Skip {fname}: condition '{CONDITION}' not found", flush=True)
                 del raw; gc.collect(); continue
 
             cond_events = events[events[:, 2] == event_id[CONDITION]]
@@ -70,6 +72,7 @@ def load_erp_features():
             del raw, epochs; gc.collect()
 
             if data.shape[0] < 10:
+                print(f"  Skip {fname}: only {data.shape[0]} trials (<10)", flush=True)
                 del data; continue
 
             n_trials = data.shape[0]
@@ -140,13 +143,14 @@ def permutation_test_loso(X, y, n_perm=1000, seed=42):
 
     print(f"Running {n_perm} permutations (n_jobs=4)...", flush=True)
     perm_bas = Parallel(n_jobs=4)(delayed(one_perm)(s) for s in seeds)
-    p_val = float(np.mean(np.array(perm_bas) >= obs_ba))
+    perm_arr = np.array(perm_bas)
+    p_val = float((np.sum(perm_arr >= obs_ba) + 1) / (n_perm + 1))
     print(f"  Observed BA={obs_ba:.3f}  p={p_val:.4f}  "
-          f"(perm mean={np.mean(perm_bas):.3f})", flush=True)
+          f"(perm mean={np.mean(perm_arr):.3f})", flush=True)
     return obs_ba, p_val
 
 
-def run_loso(X, y, ids):
+def run_loso(X, y, ids, label=None):
     """Leave-one-subject-out on subject-level features."""
     loo = LeaveOneOut()
     pipe = Pipeline([
@@ -178,7 +182,7 @@ def run_loso(X, y, ids):
     auc = roc_auc_score(true_labels, probs)
 
     print(f"\n{'='*50}")
-    print(f"Subject-level results ({CONDITION} condition, avg-ERP P300):")
+    print(f"Subject-level results ({label or CONDITION} condition, avg-ERP P300):")
     print(f"  BA  = {ba:.3f}")
     print(f"  AUC = {auc:.3f}")
     print(f"  Acc = {np.mean(preds == true_labels):.3f}")
@@ -192,7 +196,7 @@ if __name__ == "__main__":
     CONDITION = "hcue"
     X, y, ids = load_erp_features()
     print(f"Feature matrix: {X.shape}", flush=True)
-    run_loso(X, y, ids)
+    run_loso(X, y, ids, label="hcue")
     permutation_test_loso(X, y, n_perm=1000)
 
     # Phase 9: multi-condition fusion (hcue + fcue + scue)
@@ -201,7 +205,7 @@ if __name__ == "__main__":
     dicts = [load_erp_features_dict(c) for c in ["hcue", "fcue", "scue"]]
     X_fused, y_fused, ids_fused = fuse_conditions(dicts)
     print(f"Fused matrix: {X_fused.shape}  (n={len(y_fused)})", flush=True)
-    run_loso(X_fused, y_fused, ids_fused)
+    run_loso(X_fused, y_fused, ids_fused, label="fusion(hcue+fcue+scue)")
     permutation_test_loso(X_fused, y_fused, n_perm=1000)
 
     # Contrast: scue - hcue
@@ -212,5 +216,5 @@ if __name__ == "__main__":
     y_contrast = np.array([dicts[0][s][1] for s in common])
     ids_contrast = np.array(common)
     print(f"Contrast matrix: {X_contrast.shape}", flush=True)
-    run_loso(X_contrast, y_contrast, ids_contrast)
+    run_loso(X_contrast, y_contrast, ids_contrast, label="contrast(scue-hcue)")
     permutation_test_loso(X_contrast, y_contrast, n_perm=1000)
