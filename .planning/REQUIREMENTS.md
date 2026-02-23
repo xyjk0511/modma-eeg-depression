@@ -1,7 +1,7 @@
 # Requirements: MODMA EEG MDD Classification
 
 **Defined:** 2026-02-22
-**Core Value:** 通过修复 QC 参数保留足够多的受试者，使分类器能学习 MDD vs HC 的区分模式
+**Core Value:** 通过修复 QC 参数保留足够多的受试者，使分类器能学习 MDD vs HC 的区分模式；v3.0 在 hcue P300 显著基线上深化电极选择与科学解释
 
 ## v1 Requirements
 
@@ -66,21 +66,63 @@
 
 ### 多条件融合
 
-- [ ] **ERP-10**: 三条件特征融合（hcue + fcue + scue），显式 sub_id 对齐
-- [ ] **ERP-11**: 条件对比特征 scue − hcue（情绪偏向直接编码）
-- [ ] **ERP-12**: 融合后 n_subjects ≥ 40；若 < 40 则作为消融实验报告
+- [x] **ERP-10**: 三条件特征融合（hcue + fcue + scue），显式 sub_id 对齐
+- [x] **ERP-11**: 条件对比特征 scue − hcue（情绪偏向直接编码）
+- [x] **ERP-12**: 融合后 n_subjects ≥ 40；若 < 40 则作为消融实验报告
 
-### 非功能性
+---
 
-- [ ] **ERP-NF-01**: 不新增依赖库（MNE 1.11 + NumPy 2.4 + sklearn 1.8 + joblib 1.5 已足够）
-- [ ] **ERP-NF-02**: run_loso() Pipeline 不修改（StandardScaler→PCA(20)→LR）
-- [ ] **ERP-NF-03**: 每次 LOSO 前打印特征矩阵 shape
+## v3.0 Requirements — ERP Deep Analysis
 
-### 成功标准
+**Baseline:** BA=0.670, p=0.021 (hcue P300 mean amplitude, 128-dim, LOSO)
+**Goal:** 电极降维 + 科学解释，提升结果可解释性
 
-| 指标 | 目标 |
-|------|------|
-| hcue 丰富特征 BA | > 0.670 |
-| Permutation p-value | < 0.05 |
-| 融合特征 BA | > 0.70 |
-| 融合 n_subjects | ≥ 40 |
+### 电极选择（ELEC）
+
+- [ ] **ELEC-01**: 识别 EGI HydroCel 128 montage 中 Pz/P3/P4/Cz/CPz 对应的通道索引，验证坐标匹配
+- [ ] **ELEC-02**: 提取顶叶 3-dim 特征（Pz/P3/P4 P300 均值幅度），LOSO BA 与 128-dim 基线对比，permutation p-value
+- [ ] **ELEC-03**: 提取扩展 5-dim 特征（Pz/P3/P4/Cz/CPz），LOSO BA 与 3-dim 对比，permutation p-value
+
+### 时间窗口分析（TWIN）
+
+- [ ] **TWIN-01**: 对 avg_erp（N×128×n_times）做逐时间点 MDD vs HC t-test，输出 t-stat vs time 图（纯描述性）
+- [ ] **TWIN-02**: 50ms bins 消融分类（5个窗口：250-300/300-350/350-400/400-450/450-500ms），每个窗口 128-dim LOSO BA
+
+### 特征重要性（FIMP）
+
+- [ ] **FIMP-01**: 从 LOSO 各折提取 LR coef_，通过 PCA 反投影（pca.components_.T @ coef_）到通道空间，输出 128 通道权重排名
+
+## v4.0 Requirements（延期）
+
+- **COMP-01**: N200 顶叶 6-dim（P300+N200 at Pz/P3/P4）— 仅在 3-dim 顶叶 BA >= 0.670 后测试
+- **COMP-02**: LPP 成分（500-800ms）— medrxiv 2020 显示 MDD 中无 LPP 减弱证据，低优先级
+
+## Out of Scope
+
+| Feature | Reason |
+|---------|--------|
+| 多条件融合（384-dim） | Phase 9 实证：BA 0.670→0.521，引入噪声 |
+| 640-dim 丰富特征 | Phase 7 实证：BA 0.670→0.554，维度诅咒 |
+| 深度学习 | N=52 样本量不足 |
+| 跨数据集复现（TDBRAIN） | Phase 5/6 已完成，结论为负结果 |
+| Permutation importance | 需修改 run_loso() 架构，LR coef_ 反投影已足够 |
+
+## Traceability
+
+| Requirement | Phase | Status |
+|-------------|-------|--------|
+| ELEC-01 | Phase 10 | Pending |
+| ELEC-02 | Phase 10 | Pending |
+| ELEC-03 | Phase 10 | Pending |
+| TWIN-01 | Phase 11 | Pending |
+| TWIN-02 | Phase 11 | Pending |
+| FIMP-01 | Phase 12 | Pending |
+
+**Coverage:**
+- v3.0 requirements: 6 total
+- Mapped to phases: 6
+- Unmapped: 0 ✓
+
+---
+*Requirements defined: 2026-02-22*
+*Last updated: 2026-02-23 after v3.0 milestone definition*
