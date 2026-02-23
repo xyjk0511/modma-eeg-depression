@@ -761,6 +761,131 @@ def run_single_trial_analysis():
     return ba
 
 
+def run_subsample_ensemble(n_bags=10, k_trials=15, seed=42):
+    """Approach 1: sub-sample averaging + ensemble bagging."""
+    print("\n" + "="*50)
+    print("Approach 1: Sub-sample Averaging + Ensemble")
+    print(f"  n_bags={n_bags}, k_trials={k_trials}")
+    print("="*50)
+    global CONDITION; CONDITION = "hcue"
+    rng = np.random.default_rng(seed)
+
+    # Load raw trial data per subject
+    raw_files = sorted(ERP_DIR.glob("*.raw"))
+    subjects = []  # list of (trial_data, label, sub_id)
+    for fpath in raw_files:
+        fname = fpath.name
+        if fname.startswith("0201"): label = 1
+        elif fname.startswith("0202") or fname.startswith("0203"): label = 0
+        else: continue
+        m = re.match(r'(\d{8})', fname)
+        sub_id = m.group(1) if m else fname
+        try:
+            raw = mne.io.read_raw_egi(str(fpath), preload=True, verbose=False)
+            raw.pick(raw.ch_names[:N_EEG_CH])
+            raw.filter(FMIN, FMAX, verbose=False)
+            events, event_id = mne.events_from_annotations(raw, verbose=False)
+            if CONDITION not in event_id:
+                del raw; gc.collect(); continue
+            cond_events = events[events[:, 2] == event_id[CONDITION]]
+            epochs = mne.Epochs(raw, cond_events, tmin=TMIN, tmax=TMAX,
+                                baseline=BASELINE, preload=True, verbose=False,
+                                reject=dict(eeg=150e-6))
+            data = epochs.get_data()
+            times = epochs.times
+            del raw, epochs; gc.collect()
+            if data.shape[0] < k_trials:
+                del data; continue
+            subjects.append((data, times, label, sub_id))
+            print(f"  {sub_id}: label={label}, trials={data.shape[0]}", flush=True)
+        except Exception as e:
+            print(f"  Skip {fname}: {e}", flush=True); gc.collect()
+
+    n_sub = len(subjects)
+    y_sub = np.array([s[2] for s in subjects])
+    print(f"  Loaded {n_sub} subjects (MDD={sum(y_sub==1)}, HC={sum(y_sub==0)})")
+
+    # Build bagged pseudo-averages per subject
+    def make_bags(trial_data, times):
+        p300_mask = (times >= P300_WIN[0]) & (times <= P300_WIN[1])
+        bags = []
+        for _ in range(n_bags):
+            idx = rng.choice(trial_data.shape[0], size=k_trials, replace=True)
+            avg = trial_data[idx].mean(axis=0)  # (128, n_times)
+            bags.append(avg[:, p300_mask].mean(axis=1))  # (128,)
+        return np.array(bags)  # (n_bags, 128)
+
+    all_bags = [make_bags(s[0], s[1]) for s in subjects]
+
+    # LOSO with ensemble: train on all bags from other subjects, predict held-out
+    loo = LeaveOneOut()
+    preds = []
+    for tr_idx, te_idx in loo.split(y_sub):
+        X_tr = np.vstack([all_bags[i] for i in tr_idx])
+        y_tr = np.repeat(y_sub[tr_idx], n_bags)
+        X_te = all_bags[te_idx[0]]  # (n_bags, 128)
+        pipe = Pipeline([
+            ("scaler", StandardScaler()),
+            ("pca", PCA(n_components=min(20, X_tr.shape[0]-1))),
+            ("clf", LogisticRegression(C=1.0, max_iter=2000, class_weight="balanced"))
+        ])
+        pipe.fit(X_tr, y_tr)
+        prob = pipe.predict_proba(X_te)[:, 1].mean()
+        preds.append(int(prob >= 0.5))
+
+    ba = balanced_accuracy_score(y_sub, preds)
+    print(f"\n  Ensemble BA={ba:.3f}  (ERP baseline=0.670, delta={ba-0.670:+.3f})")
+    return ba
+
+
+def run_roi_timebin_features():
+    """Approach 2: low-dim ROI × time-bin features."""
+    print("\n" + "="*50)
+    print("Approach 2: Low-dim ROI x Time-bin Features")
+    print("="*50)
+
+    _, avg_erps, times, y, ids = load_erp_timeseries(condition="hcue")
+    parietal_idx = list(dict.fromkeys(get_parietal_indices(("Pz","P3","P4")).values()))
+    central_idx = list(dict.fromkeys(get_parietal_indices(("Cz","CPz")).values()))
+    frontal_idx = list(dict.fromkeys(get_parietal_indices(("Fz",)).values()))
+
+    rois = [("parietal", parietal_idx), ("central", central_idx), ("frontal", frontal_idx)]
+    feats = []
+    feat_names = []
+    for roi_name, ch_idx in rois:
+        roi_erp = avg_erps[:, ch_idx, :].mean(axis=1)  # (N, n_times)
+        for bin_name, t0, t1 in BINS:
+            mask = (times >= t0) & (times < t1) if bin_name != BINS[-1][0] else (times >= t0) & (times <= t1)
+            feats.append(roi_erp[:, mask].mean(axis=1, keepdims=True))
+            feat_names.append(f"{roi_name}_{bin_name}")
+
+    X = np.hstack(feats)  # (N, n_rois * n_bins)
+    print(f"  Feature matrix: {X.shape}  ({len(feat_names)} dims)")
+    print(f"  Features: {feat_names}")
+
+    # LOSO with regularized LR (no PCA needed — already low-dim)
+    loo = LeaveOneOut()
+    preds_lr, preds_svm = [], []
+    for tr_idx, te_idx in loo.split(X):
+        scaler = StandardScaler()
+        X_tr = scaler.fit_transform(X[tr_idx])
+        X_te = scaler.transform(X[te_idx])
+        lr = LogisticRegression(C=0.1, max_iter=2000, class_weight="balanced")
+        lr.fit(X_tr, y[tr_idx])
+        preds_lr.append(int(lr.predict(X_te)[0]))
+        from sklearn.svm import LinearSVC
+        svm = LinearSVC(C=0.1, max_iter=5000, class_weight="balanced")
+        svm.fit(X_tr, y[tr_idx])
+        preds_svm.append(int(svm.predict(X_te)[0]))
+
+    ba_lr = balanced_accuracy_score(y, preds_lr)
+    ba_svm = balanced_accuracy_score(y, preds_svm)
+    print(f"\n  LR  BA={ba_lr:.3f}  (delta={ba_lr-0.670:+.3f})")
+    print(f"  SVM BA={ba_svm:.3f}  (delta={ba_svm-0.670:+.3f})")
+    print(f"  ERP baseline: BA=0.670")
+    return ba_lr, ba_svm
+
+
 def load_resting_features():
     from scipy.io import loadmat
     from scipy.signal import welch
