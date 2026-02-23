@@ -515,13 +515,13 @@ def test_load_windows_applies_average_reference():
     assert "'average'" in src
 
 
-def test_total_feature_dimensions_5():
+def test_total_feature_dimensions_15():
     from modma_mdd_real_experiment import extract_features
     ch_names = [f"E{i}" for i in range(1, 129)]
     X = np.random.RandomState(0).randn(2, 128, 500)
     feats, names = extract_features(X, sfreq=125.0, ch_names=ch_names)
-    assert feats.shape[1] == 5
-    assert len(names) == 5
+    assert feats.shape[1] == 15
+    assert len(names) == 15
 
 
 def test_bad_amp_uv_respected_as_single_candidate():

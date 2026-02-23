@@ -324,7 +324,7 @@ def _compute_coherence(X, region_idx, sfreq, region_a, region_b, fmin, fmax):
     for i in range(n_win):
         freqs_c, cxy = sig_coherence(sig_a[i], sig_b[i], fs=sfreq, nperseg=nperseg)
         band_mask = (freqs_c >= fmin) & (freqs_c <= fmax)
-        result[i] = np.mean(cxy[band_mask]) if band_mask.any() else 0.0
+        result[i] = np.nan_to_num(np.mean(cxy[band_mask])) if band_mask.any() else 0.0
     return result[:, np.newaxis]
 
 
@@ -439,7 +439,8 @@ def build_feature_model_pipeline(use_l1=False):
     return Pipeline([
         ("scaler", StandardScaler()),
         ("clf", LogisticRegression(C=0.1, penalty=penalty, solver=solver,
-                                   max_iter=1000, random_state=42)),
+                                   max_iter=1000, random_state=42,
+                                   class_weight="balanced")),
     ])
 
 def compute_subject_balanced_sample_weights(groups):
