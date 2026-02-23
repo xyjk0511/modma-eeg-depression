@@ -8,6 +8,7 @@ Usage: python run_modma_erp.py
 """
 import os, gc, warnings, numpy as np
 from pathlib import Path
+from joblib import Parallel, delayed
 
 import mne
 from sklearn.model_selection import LeaveOneOut
@@ -87,12 +88,45 @@ def load_erp_features():
             print(f"  Skip {fname}: {e}", flush=True)
             gc.collect()
 
-    X = np.array(all_feat)    # (n_subjects, 640)
+    X = np.array(all_feat)    # (n_subjects, 128)
     y = np.array(all_labels)
     ids = np.array(all_ids)
     n_mdd = sum(y == 1); n_hc = sum(y == 0)
     print(f"\nTotal: {len(y)} subjects (MDD={n_mdd}, HC={n_hc})", flush=True)
     return X, y, ids
+
+
+def _loso_ba(X, y):
+    """Silent LOSO — returns BA only (for permutation loop)."""
+    loo = LeaveOneOut()
+    pipe = Pipeline([
+        ("scaler", StandardScaler()),
+        ("pca",    PCA(n_components=20)),
+        ("clf",    LogisticRegression(C=1.0, max_iter=2000, class_weight="balanced"))
+    ])
+    preds = []
+    for tr_idx, te_idx in loo.split(X):
+        pipe.fit(X[tr_idx], y[tr_idx])
+        preds.append(int(pipe.predict(X[te_idx])[0]))
+    return balanced_accuracy_score(y, preds)
+
+
+def permutation_test_loso(X, y, n_perm=1000, seed=42):
+    """Subject-level permutation test. Features extracted once outside loop."""
+    assert len(y) == X.shape[0], "y must be subject-level"
+    rng = np.random.default_rng(seed)
+    obs_ba = _loso_ba(X, y)
+    seeds = rng.integers(0, 2**31, size=n_perm)
+
+    def one_perm(s):
+        return _loso_ba(X, np.random.default_rng(s).permutation(y))
+
+    print(f"Running {n_perm} permutations (n_jobs=4)...", flush=True)
+    perm_bas = Parallel(n_jobs=4)(delayed(one_perm)(s) for s in seeds)
+    p_val = float(np.mean(np.array(perm_bas) >= obs_ba))
+    print(f"  Observed BA={obs_ba:.3f}  p={p_val:.4f}  "
+          f"(perm mean={np.mean(perm_bas):.3f})", flush=True)
+    return obs_ba, p_val
 
 
 def run_loso(X, y, ids):
@@ -137,8 +171,9 @@ def run_loso(X, y, ids):
 
 
 if __name__ == "__main__":
-    for cond in ["hcue", "fcue", "scue"]:
-        CONDITION = cond
-        X, y, ids = load_erp_features()
-        print(f"Feature matrix: {X.shape}", flush=True)
-        run_loso(X, y, ids)
+    # Primary condition: hcue with permutation test
+    CONDITION = "hcue"
+    X, y, ids = load_erp_features()
+    print(f"Feature matrix: {X.shape}", flush=True)
+    run_loso(X, y, ids)
+    permutation_test_loso(X, y, n_perm=1000)
