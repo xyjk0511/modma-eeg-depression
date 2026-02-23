@@ -9,10 +9,10 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 
 ## Current Position
 
-Phase: 8 (complete)
+Phase: 9 (complete)
 Plan: 01 (complete)
-Status: Phase 8 complete — permutation test validated
-Last activity: 2026-02-23 — Phase 8-01 hcue permutation test p=0.021
+Status: Phase 9 complete — multi-condition fusion and contrast ablation
+Last activity: 2026-02-23 — Phase 9-01 fusion BA=0.521 p=0.412, contrast BA=0.521 p=0.384
 
 Progress: [██████████] 100%
 
@@ -30,7 +30,7 @@ Progress: [██████████] 100%
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 8
+- Total plans completed: 9
 - Average duration: 5.1 min
 - Total execution time: 0.68 hours
 
@@ -51,6 +51,9 @@ Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
 - hcue BA=0.670 is statistically significant (p=0.021 < 0.05) — ERP-07/08/09 satisfied
+- 09-01: Fusion (n=51) BA=0.521 p=0.412 — negative; hcue single-condition is optimal
+- 09-01: Contrast scue-hcue (n=52) BA=0.521 p=0.384 — negative ablation
+- 09-01: n_common=51 >= 40 threshold; ERP-10/11/12 satisfied
 - Roadmap: 4 phases derived from 12 requirements (QC -> Preprocessing -> Features -> Validation)
 - 01-01: Per-window QC discards any window with >0 channels exceeding 200uV post-interpolation
 - 01-01: Dynamic max_bad_channels (12% of n_channels) overrides CLI value
@@ -99,6 +102,6 @@ None — all phases complete.
 
 ## Session Continuity
 
-Last session: 2026-02-22 12:35
-Stopped at: Completed 06-02-PLAN.md (15-dim cross-dataset replication — ALL PHASES DONE)
+Last session: 2026-02-23
+Stopped at: Completed 09-01-PLAN.md (multi-condition fusion + contrast — ALL PHASES DONE)
 Resume file: N/A — project complete

@@ -143,7 +143,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 09-01-PLAN.md — 多条件融合 + 对比特征 + 最终 permutation 验证
+- [x] 09-01-PLAN.md — 多条件融合 + 对比特征 + 最终 permutation 验证 (fusion BA=0.521 p=0.412, contrast BA=0.521 p=0.384)
 
 ## Progress
 
