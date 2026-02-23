@@ -1,0 +1,4 @@
+Resting-state EEG classification (N=53)
+BA=0.391  AUC=0.369
+ERP baseline: BA=0.670
+Delta BA: -0.279

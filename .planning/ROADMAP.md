@@ -17,7 +17,8 @@ This project fixes the QC bottleneck that drops 80% of subjects (11/53 retained)
 - [x] **Phase 9: Multi-Condition Fusion + Contrast Features** - 融合三条件特征，BA > 0.70，p < 0.05
 - [x] **Phase 10: Electrode Selection** - 识别 EGI 顶叶通道索引，验证 3-dim 和 5-dim 顶叶子集分类器 (completed 2026-02-23)
 - [x] **Phase 11: Time-Window Analysis** - 逐时间点 t-test 描述性分析 + 50ms bins 消融分类 (completed 2026-02-23)
-- [x] **Phase 12: Feature Importance** - LR coef_ 反投影到通道空间，输出 128 通道权重排名 (completed 2026-02-23)
+- [x] **Phase 12: Feature Importance** - LR coef_ 反投影到通道空间，输出 128 通道权重排名
+- [ ] **Phase 13: Resting-State EEG Classification** - 用MODMA静息态EEG（128通道，5分钟/人）提取频段功率特征，LOSO分类MDD vs HC，与ERP结果对比 (completed 2026-02-23)
 
 ## Phase Details
 
@@ -190,6 +191,19 @@ Plans:
 Plans:
 - [x] 12-01-PLAN.md — _loso_collect_coefs + run_feature_importance (hcue top=E55, bin250 top=E55)
 
+### Phase 13: Resting-State EEG Classification
+**Goal**: 用MODMA静息态EEG（128通道，5分钟/人）提取频段功率特征（delta/theta/alpha/beta），LOSO分类MDD vs HC，与ERP结果对比
+**Depends on**: Phase 12
+**Requirements**: REST-01
+**Success Criteria** (what must be TRUE):
+  1. load_resting_features() 读取 .mat 文件，Welch PSD 提取5频段功率，返回 (n_subjects, 640) 特征矩阵
+  2. LOSO BA 结果与 ERP BA=0.670 对比输出
+  3. out_phase13/resting_result.txt 保存结果
+**Plans**: 1 plan
+
+Plans:
+- [ ] 13-01-PLAN.md — load_resting_features + LOSO + 与ERP对比
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -206,3 +220,4 @@ Plans:
 | 10. Electrode Selection | 1/1 | Complete    | 2026-02-23 |
 | 11. Time-Window Analysis | 1/1 | Complete    | 2026-02-23 |
 | 12. Feature Importance | 1/1 | Complete    | 2026-02-23 |
+| 13. Resting-State EEG Classification | 0/1 | Pending | - |

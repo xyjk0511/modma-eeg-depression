@@ -32,6 +32,8 @@ FMIN, FMAX = 0.5, 40.0     # bandpass filter
 N_EEG_CH = 128
 P300_WIN = (0.25, 0.50)    # P300 time window (sec)
 N200_WIN = (0.10, 0.25)    # N200 time window (sec)
+RESTING_DIR = Path("854301_EEG_128Channels_Resting_Lanzhou_2015/EEG_128channels_resting_lanzhou_2015")
+BANDS = {"delta":(1,4),"theta":(4,8),"alpha":(8,13),"beta":(13,30),"gamma":(30,45)}
 
 BINS = [
     ("250-300ms", 0.250, 0.300),
@@ -759,6 +761,64 @@ def run_single_trial_analysis():
     return ba
 
 
+def load_resting_features():
+    from scipy.io import loadmat
+    from scipy.signal import welch
+    X, y, ids = [], [], []
+    for f in sorted(RESTING_DIR.glob("*.mat")):
+        sid = f.stem
+        try:
+            mat = loadmat(str(f))
+            data_key = next(k for k in mat if not k.startswith("_") and k not in ("samplingRate", "Impedances_0"))
+            data = mat[data_key][:128, :]
+            fs = float(mat["samplingRate"].flat[0])
+            freqs, psd = welch(data, fs=fs, nperseg=256)
+            feats = []
+            for lo, hi in BANDS.values():
+                mask = (freqs >= lo) & (freqs < hi)
+                feats.append(psd[:, mask].mean(axis=1))
+            X.append(np.concatenate(feats))
+            label = 1 if sid.startswith("0201") else 0
+            y.append(label); ids.append(sid)
+            print(f"  {sid}: label={label}", flush=True)
+        except Exception as e:
+            print(f"  Skip {f.name}: {e}", flush=True)
+    X, y = np.array(X), np.array(y)
+    print(f"Resting: {X.shape}  MDD={sum(y==1)} HC={sum(y==0)}", flush=True)
+    return X, y, ids
+
+
+def run_resting_analysis():
+    print("\n" + "="*50)
+    print("Phase 13: Resting-State EEG Classification")
+    print("="*50)
+    out_dir = Path("out_phase13"); out_dir.mkdir(exist_ok=True)
+    X, y, _ = load_resting_features()
+    n = len(y)
+    pipe = Pipeline([
+        ("scaler", StandardScaler()),
+        ("pca",    PCA(n_components=min(20, n - 1))),
+        ("clf",    LogisticRegression(C=1.0, class_weight="balanced", max_iter=1000)),
+    ])
+    loo = LeaveOneOut()
+    preds, probs = np.zeros(n, dtype=int), np.zeros(n)
+    for tr, te in loo.split(X):
+        pipe.fit(X[tr], y[tr])
+        preds[te] = pipe.predict(X[te])
+        probs[te]  = pipe.predict_proba(X[te])[:, 1]
+    ba  = balanced_accuracy_score(y, preds)
+    auc = roc_auc_score(y, probs)
+    lines = [
+        f"Resting-state EEG classification (N={n})",
+        f"BA={ba:.3f}  AUC={auc:.3f}",
+        f"ERP baseline: BA=0.670",
+        f"Delta BA: {ba - 0.670:+.3f}",
+    ]
+    print("\n".join(lines), flush=True)
+    (out_dir / "resting_result.txt").write_text("\n".join(lines))
+    print(f"  Saved: out_phase13/resting_result.txt", flush=True)
+
+
 if __name__ == "__main__":
     # Phase 8: hcue single-condition + permutation test
     CONDITION = "hcue"
@@ -802,3 +862,6 @@ if __name__ == "__main__":
 
     # Phase 14: Classifier Comparison (LR / SVM / XGBoost × P300 / P300+N200)
     run_classifier_comparison()
+
+    # Phase 13 (Resting-State): band-power LOSO vs ERP baseline
+    run_resting_analysis()
