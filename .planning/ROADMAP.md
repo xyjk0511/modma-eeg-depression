@@ -140,7 +140,7 @@ Plans:
   2. scue−hcue 对比特征作为消融实验单独测试
   3. 融合 LOSO BA > 0.70，permutation p < 0.05
   4. 若 n_common < 40，作为消融实验报告（不作为主要结论）
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
 - [ ] 09-01-PLAN.md — 多条件融合 + 对比特征 + 最终 permutation 验证
