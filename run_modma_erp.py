@@ -96,6 +96,23 @@ def load_erp_features():
     return X, y, ids
 
 
+def load_erp_features_dict(condition):
+    """Load features as dict[sub_id -> (feat, label)] for multi-condition fusion."""
+    global CONDITION
+    CONDITION = condition
+    X, y, ids = load_erp_features()
+    return {sid: (X[i], y[i]) for i, sid in enumerate(ids)}
+
+
+def fuse_conditions(cond_dicts):
+    """Intersect sub_ids across conditions and hstack features."""
+    common = sorted(set.intersection(*[set(d.keys()) for d in cond_dicts]))
+    X = np.hstack([np.array([d[s][0] for s in common]) for d in cond_dicts])
+    y = np.array([cond_dicts[0][s][1] for s in common])
+    ids = np.array(common)
+    return X, y, ids
+
+
 def _loso_ba(X, y):
     """Silent LOSO — returns BA only (for permutation loop)."""
     loo = LeaveOneOut()
@@ -171,9 +188,29 @@ def run_loso(X, y, ids):
 
 
 if __name__ == "__main__":
-    # Primary condition: hcue with permutation test
+    # Phase 8: hcue single-condition + permutation test
     CONDITION = "hcue"
     X, y, ids = load_erp_features()
     print(f"Feature matrix: {X.shape}", flush=True)
     run_loso(X, y, ids)
     permutation_test_loso(X, y, n_perm=1000)
+
+    # Phase 9: multi-condition fusion (hcue + fcue + scue)
+    print("\n" + "="*50)
+    print("Multi-condition fusion: hcue + fcue + scue")
+    dicts = [load_erp_features_dict(c) for c in ["hcue", "fcue", "scue"]]
+    X_fused, y_fused, ids_fused = fuse_conditions(dicts)
+    print(f"Fused matrix: {X_fused.shape}  (n={len(y_fused)})", flush=True)
+    run_loso(X_fused, y_fused, ids_fused)
+    permutation_test_loso(X_fused, y_fused, n_perm=1000)
+
+    # Contrast: scue - hcue
+    print("\n" + "="*50)
+    print("Contrast: scue - hcue")
+    common = sorted(set(dicts[0]) & set(dicts[2]))
+    X_contrast = np.array([dicts[2][s][0] - dicts[0][s][0] for s in common])
+    y_contrast = np.array([dicts[0][s][1] for s in common])
+    ids_contrast = np.array(common)
+    print(f"Contrast matrix: {X_contrast.shape}", flush=True)
+    run_loso(X_contrast, y_contrast, ids_contrast)
+    permutation_test_loso(X_contrast, y_contrast, n_perm=1000)
