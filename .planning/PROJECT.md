@@ -1,16 +1,14 @@
 # MODMA EEG 抑郁症分类
 
-## Current Milestone: v2.0 ERP Task-State Classification
+## Current Milestone: v3.0 ERP Deep Analysis
 
-**Goal:** 基于 ERP 任务态数据（Dot-probe hcue/fcue/scue），系统化提取 P300/N200 成分特征，融合多条件，验证统计显著性
+**Goal:** 在 hcue P300 显著结果（BA=0.670, p=0.021）基础上，深化 ERP 分析：探索更多成分（N200/LPP）、优化电极选择、分析时间窗口贡献、解释特征重要性
 
 **Target features:**
-- P300 特征丰富化（峰值幅度、潜伏期、面积）
-- N200 成分（100–250ms 窗口）
-- 多条件融合（hcue + scue + fcue 特征拼接）
-- Permutation test 验证 BA 统计显著性（p<0.05）
-
-
+- 更多 ERP 成分：N200（100–250ms）、LPP（500–800ms）均值幅度特征
+- 电极选择优化：从 128 通道中识别贡献最大的电极子集（如顶叶 Pz/P3/P4）
+- 时间窗口分析：对 P300 潜伏期/幅度做组间 t-test，找最具判别力的时间窗口
+- 特征重要性解释：SVM 权重或 permutation importance 解释哪些特征最关键
 
 基于 MODMA 数据集的 EEG 脑电特征抑郁症（MDD）vs 健康对照（HC）二分类项目。已有可运行的管线（modma_mdd_real_experiment.py），但当前分类效果在 chance level（BA≈0.54），需要通过数据质量改进来提升可分性。
 
@@ -31,11 +29,11 @@
 
 ### Active
 
-- [ ] 修复 QC 参数：max_bad_channels 从 3 调至 ~15（128通道的 ~12%）
-- [ ] 跳过 Window 0（滤波器边缘效应）
-- [ ] 调整振幅阈值策略（当前 200µV 对该数据集偏严格）
-- [ ] 保留受试者数从 11 提升到 35-40
-- [ ] 分类 BA 达到统计显著（BA>0.6, p<0.05）
+- [ ] 提取 N200（100–250ms）和 LPP（500–800ms）成分均值幅度特征
+- [ ] 从 128 通道中识别贡献最大的电极子集（顶叶/枕叶区域）
+- [ ] 对 P300 时间窗口做组间 t-test，找最具判别力的时间段
+- [ ] 用 SVM 权重或 permutation importance 解释特征重要性
+- [ ] 验证新特征组合 BA ≥ 0.670，p < 0.05
 
 ### Out of Scope
 
@@ -76,9 +74,11 @@
 
 | Decision | Rationale | Outcome |
 |----------|-----------|---------|
-| 聚焦 128 通道数据集 | 3通道实验证明特征空间不足 | — Pending |
-| 数据质量优先于模型改进 | 诊断显示瓶颈在 QC 丢弃率，不是特征或模型 | — Pending |
-| max_bad_channels 按通道比例设置 | 128通道用固定值3不合理，应按 ~12% 比例 | — Pending |
+| 聚焦 128 通道数据集 | 3通道实验证明特征空间不足 | ✓ Good |
+| 数据质量优先于模型改进 | 诊断显示瓶颈在 QC 丢弃率，不是特征或模型 | ✓ Good |
+| max_bad_channels 按通道比例设置 | 128通道用固定值3不合理，应按 ~12% 比例 | ✓ Good |
+| hcue 单条件优于多条件融合 | 融合引入噪声（BA 0.670→0.521），单条件信号更纯净 | ✓ Good |
+| P300 均值幅度（128-dim）作为基线特征 | v2.0 验证 BA=0.670, p=0.021，统计显著 | ✓ Good |
 
 ---
-*Last updated: 2026-02-22 after initialization*
+*Last updated: 2026-02-23 after v3.0 milestone start*

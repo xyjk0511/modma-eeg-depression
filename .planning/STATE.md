@@ -2,19 +2,19 @@
 
 ## Project Reference
 
-See: .planning/PROJECT.md (updated 2026-02-22)
+See: .planning/PROJECT.md (updated 2026-02-23)
 
-**Core value:** ERP 任务态特征（P300/N200）+ 多条件融合，实现统计显著的 MDD vs HC 分类
-**Current focus:** v2.0 里程碑完成
+**Core value:** 深化 ERP 分析（更多成分、电极优化、时间窗口、特征解释），在 hcue P300 显著基线上进一步提升可解释性
+**Current focus:** v3.0 里程碑 — 定义需求中
 
 ## Current Position
 
-Phase: 9 (complete)
-Plan: 01 (complete)
-Status: Phase 9 complete — multi-condition fusion and contrast ablation
-Last activity: 2026-02-23 — Phase 9-01 fusion BA=0.521 p=0.412, contrast BA=0.521 p=0.384
+Phase: Not started (defining requirements)
+Plan: —
+Status: Defining requirements
+Last activity: 2026-02-23 — Milestone v3.0 started
 
-Progress: [██████████] 100%
+Progress: [░░░░░░░░░░] 0%
 
 ## v2.0 Final Results
 
