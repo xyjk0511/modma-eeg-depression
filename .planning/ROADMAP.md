@@ -203,6 +203,6 @@ Plans:
 | 7. P300 Feature Enrichment + N200 | 1/1 | Complete (feature enrichment regressed; reverted to 128-dim p300_mean baseline BA=0.670) | 2026-02-23 |
 | 8. Permutation Test Validation | 1/1 | Complete (BA=0.670, p=0.021 — significant) | 2026-02-23 |
 | 9. Multi-Condition Fusion | 1/1 | Complete | 2026-02-23 |
-| 10. Electrode Selection | 1/1 | Complete   | 2026-02-23 |
+| 10. Electrode Selection | 1/1 | Complete    | 2026-02-23 |
 | 11. Time-Window Analysis | 0/1 | Not started | - |
 | 12. Feature Importance | 0/1 | Not started | - |
