@@ -111,18 +111,30 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
+| VAL-02 | Phase 14 (was Phase 8) | Pending |
+| ERP-01 | Phase 14 (was Phase 7) | Pending |
+| ERP-02 | Phase 14 (was Phase 7) | Pending |
+| ERP-03 | Phase 14 (was Phase 7) | Pending |
+| ERP-04 | Phase 15 | Pending |
+| ERP-05 | Phase 14 (was Phase 7) | Pending |
+| ERP-06 | Phase 14 (was Phase 7) | Pending |
+| ERP-07 | Phase 14 (was Phase 8) | Pending |
+| ERP-08 | Phase 14 (was Phase 8) | Pending |
+| ERP-09 | Phase 14 (was Phase 8) | Pending |
 | ELEC-01 | Phase 10 | Complete |
 | ELEC-02 | Phase 10 | Complete |
 | ELEC-03 | Phase 10 | Complete |
 | TWIN-01 | Phase 11 | Complete |
 | TWIN-02 | Phase 11 | Complete |
-| FIMP-01 | Phase 12 | Pending |
+| FIMP-01 | Phase 14 (was Phase 12) | Pending |
+| PRE-02 | Phase 16 | Pending |
+| ARCH-01 | Phase 16 | Pending |
 
 **Coverage:**
-- v3.0 requirements: 6 total
-- Mapped to phases: 6
+- v1-v3 gap closure requirements: 18 total
+- Mapped to phases: 18
 - Unmapped: 0 ✓
 
 ---
 *Requirements defined: 2026-02-22*
-*Last updated: 2026-02-23 after v3.0 milestone definition*
+*Last updated: 2026-02-23 after gap closure phases 14-16 added*

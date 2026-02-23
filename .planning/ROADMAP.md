@@ -19,6 +19,9 @@ This project fixes the QC bottleneck that drops 80% of subjects (11/53 retained)
 - [x] **Phase 11: Time-Window Analysis** - 逐时间点 t-test 描述性分析 + 50ms bins 消融分类 (completed 2026-02-23)
 - [x] **Phase 12: Feature Importance** - LR coef_ 反投影到通道空间，输出 128 通道权重排名
 - [ ] **Phase 13: Resting-State EEG Classification** - 用MODMA静息态EEG（128通道，5分钟/人）提取频段功率特征，LOSO分类MDD vs HC，与ERP结果对比 (completed 2026-02-23)
+- [ ] **Phase 14: Verification & Requirements Cleanup** - 补齐 Phase 02/05/07/13 的 VERIFICATION.md，修复 10 个过期复选框
+- [ ] **Phase 15: Grand-Average ERP Plot** - 实现 ERP-04：绘制 grand-average ERP 验证 P300 窗口（250–500ms 正偏转）
+- [ ] **Phase 16: Preprocessing Deferred Items** - 实现 PRE-02 (pyprep) 和 ARCH-01 (.npz cache)
 
 ## Phase Details
 
@@ -204,6 +207,48 @@ Plans:
 Plans:
 - [ ] 13-01-PLAN.md — load_resting_features + LOSO + 与ERP对比
 
+### Phase 14: Verification & Requirements Cleanup
+**Goal**: 补齐缺失的 VERIFICATION.md，修复过期复选框，确保审计通过
+**Depends on**: Phase 13
+**Requirements**: VAL-02, ERP-01, ERP-02, ERP-03, ERP-05, ERP-06, ERP-07, ERP-08, ERP-09, FIMP-01
+**Gap Closure:** Closes verification and checkbox gaps from v1.0 audit
+**Success Criteria** (what must be TRUE):
+  1. Phase 02, 05, 07, 13 各有 VERIFICATION.md
+  2. REQUIREMENTS.md 中 10 个过期复选框已勾选
+  3. Traceability 表更新
+**Plans**: TBD
+
+Plans:
+- [ ] 14-01-PLAN.md — Write VERIFICATION.md for 4 phases + fix stale checkboxes
+
+### Phase 15: Grand-Average ERP Plot
+**Goal**: 绘制 grand-average ERP 波形图，验证 P300 窗口（250–500ms 正偏转）
+**Depends on**: Phase 14
+**Requirements**: ERP-04
+**Gap Closure:** Closes ERP-04 from v1.0 audit
+**Success Criteria** (what must be TRUE):
+  1. grand-average ERP 图覆盖 0–800ms，MDD/HC 分组绘制
+  2. 250–500ms 窗口内可见正偏转（P300）
+  3. 图保存为 out_phase15/grand_avg_erp.png
+**Plans**: TBD
+
+Plans:
+- [ ] 15-01-PLAN.md — grand-average ERP plot implementation
+
+### Phase 16: Preprocessing Deferred Items
+**Goal**: 实现之前延期的 pyprep 坏通道检测和 .npz 缓存
+**Depends on**: Phase 15
+**Requirements**: PRE-02, ARCH-01
+**Gap Closure:** Closes deferred items from v1.0 audit
+**Success Criteria** (what must be TRUE):
+  1. pyprep NoisyChannels 替代纯振幅坏通道检测
+  2. EDF 加载后缓存为 .npz，第二次运行 < 1s
+  3. 保留受试者数 >= 35
+**Plans**: TBD
+
+Plans:
+- [ ] 16-01-PLAN.md — pyprep integration + .npz caching
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -221,3 +266,6 @@ Plans:
 | 11. Time-Window Analysis | 1/1 | Complete    | 2026-02-23 |
 | 12. Feature Importance | 1/1 | Complete    | 2026-02-23 |
 | 13. Resting-State EEG Classification | 0/1 | Pending | - |
+| 14. Verification & Requirements Cleanup | 0/1 | Pending | - |
+| 15. Grand-Average ERP Plot | 0/1 | Pending | - |
+| 16. Preprocessing Deferred Items | 0/1 | Pending | - |
