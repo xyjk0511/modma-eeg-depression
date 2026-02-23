@@ -9,12 +9,12 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 
 ## Current Position
 
-Phase: 11 — Time-Window Analysis
-Plan: 11-01 (complete)
+Phase: 12 — Feature Importance
+Plan: 12-01 (complete)
 Status: Complete
-Last activity: 2026-02-23 — 11-01 time-window analysis complete (ttest_curve.png + bin_ablation.csv)
+Last activity: 2026-02-23 — 12-01 feature importance complete (feature_importance_hcue.csv + feature_importance_bin250.csv + topomap_hcue_vs_bin.png)
 
-Progress: [██████░░░░] 67%  (v3.0: 2/3 phases)
+Progress: [████████████] 100%  (v3.0: 3/3 phases)
 
 ## v2.0 Final Results
 
@@ -96,6 +96,9 @@ Recent decisions affecting current work:
 - [Phase 11]: 11-01: C=1.0 default preserves backward compat; bin ablation uses C=0.1 for 128-dim input
 - [Phase 11]: 11-01: Half-open bin intervals [t0, t1) for bins 1-4; closed [t0, t1] for last bin to include 500ms
 
+- [Phase 12]: 12-01: n_components=20 for both models (consistent with Phase 8, not Phase 11 capped value)
+- [Phase 12]: 12-01: C=1.0 for hcue, C=0.1 for bin250; top channel E55 (Cz-adjacent) ranks #1 for both models with HC+ sign
+
 ### Pending Todos
 
 None — all phases complete.
@@ -108,5 +111,5 @@ None — all phases complete.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 11-01-PLAN.md (time-window analysis — ttest_curve.png + bin_ablation.csv)
-Resume file: .planning/ROADMAP.md — Phase 11 complete, start Phase 12 or next v3.0 phase
+Stopped at: Completed 12-01-PLAN.md (feature importance — feature_importance_hcue.csv + feature_importance_bin250.csv + topomap_hcue_vs_bin.png)
+Resume file: .planning/ROADMAP.md — Phase 12 complete, v3.0 milestone complete

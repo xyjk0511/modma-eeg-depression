@@ -188,7 +188,7 @@ Plans:
 **Plans**: TBD
 
 Plans:
-- [ ] 12-01-PLAN.md — TBD
+- [x] 12-01-PLAN.md — _loso_collect_coefs + run_feature_importance (hcue top=E55, bin250 top=E55)
 
 ## Progress
 
@@ -205,4 +205,4 @@ Plans:
 | 9. Multi-Condition Fusion | 1/1 | Complete | 2026-02-23 |
 | 10. Electrode Selection | 1/1 | Complete    | 2026-02-23 |
 | 11. Time-Window Analysis | 1/1 | Complete    | 2026-02-23 |
-| 12. Feature Importance | 0/1 | Not started | - |
+| 12. Feature Importance | 1/1 | Complete (hcue top=E55 w=0.728, bin250 top=E55 w=0.303) | 2026-02-23 |
