@@ -126,10 +126,10 @@ Plans:
   1. permutation_test_loso() 在 subject-level 置换标签（assert len(y)==n_subjects）
   2. 1000 次置换，joblib.Parallel，seed=42
   3. hcue 丰富特征 p-value < 0.05
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 08-01-PLAN.md — 实现 permutation_test_loso() + hcue 1000-perm 验证
+- [ ] 08-01-PLAN.md — Run hcue 1000-perm permutation test, record p-value
 
 ### Phase 9: Multi-Condition Fusion + Contrast Features
 **Goal**: 融合三条件特征，BA > 0.70，p < 0.05
