@@ -167,3 +167,65 @@ pip install mne-connectivity==0.7.0
 ---
 *Stack research for: EEG MDD classification preprocessing improvement*
 *Researched: 2026-02-22*
+
+---
+
+## ERP Task-State Milestone — Stack Additions
+
+**Domain:** ERP task-state MDD classification (P300/N200, multi-condition fusion)
+**Researched:** 2026-02-22
+**Confidence:** HIGH
+
+### Verdict: Zero New Library Installs Required
+
+Every capability needed for P300/N200 extraction, multi-condition fusion, and permutation significance testing is already present in the installed stack.
+
+| Capability | How | Library |
+|------------|-----|---------|
+| ERP epoching + baseline correction | `mne.Epochs(tmin, tmax, baseline)` | MNE 1.11.0 (installed) |
+| Evoked averaging | `epochs.average()` → `mne.Evoked` | MNE 1.11.0 (installed) |
+| P300 mean amplitude (250–500ms) | `data[:, mask].mean(axis=1)` | NumPy 2.4.2 (installed) |
+| P300 peak amplitude per channel | `data[:, mask].max(axis=1)` | NumPy 2.4.2 (installed) |
+| P300 peak latency per channel | `times[mask][data[:, mask].argmax(axis=1)]` | NumPy 2.4.2 (installed) |
+| P300 area under curve | `np.trapezoid(data[:, mask], times[mask], axis=1)` | NumPy 2.4.2 (installed) |
+| N200 amplitude (100–250ms, negative) | `data[:, mask].min(axis=1)` | NumPy 2.4.2 (installed) |
+| Multi-condition fusion | `np.concatenate([feat_hcue, feat_fcue, feat_scue])` | NumPy 2.4.2 (installed) |
+| Missing-condition imputation | `SimpleImputer(strategy='mean')` inside Pipeline | sklearn 1.8.0 (installed) |
+| Permutation significance test | `joblib.Parallel` + label shuffle + LOSO rerun | joblib 1.5.3 (installed) |
+
+### Key Implementation Notes
+
+**np.trapz renamed in NumPy 2.x:** Use `np.trapezoid` (not `np.trapz`) to avoid DeprecationWarning in NumPy >= 2.0.
+
+**get_peak is not suitable for per-channel feature extraction:** `mne.Evoked.get_peak()` returns one (channel, time) pair across all channels. For 128-channel feature vectors, use NumPy windowed `argmax`/`argmin` directly on `evoked.get_data()`.
+
+**Keep manual permutation loop, not sklearn.permutation_test_score:** `permutation_test_score` with `LeaveOneOut` does not support subject-level BA aggregation — it would compute window-level BA in the null distribution, biasing p-values. The existing `joblib.Parallel` pattern from the resting-state pipeline is correct and should be reused.
+
+**Multi-condition missing subjects:** Some subjects may have trials for only 1–2 of the 3 conditions (hcue/fcue/scue). Use `SimpleImputer(strategy='mean')` inside the sklearn Pipeline to handle NaN blocks rather than dropping subjects.
+
+### What NOT to Add for ERP Milestone
+
+| Avoid | Why |
+|-------|-----|
+| autoreject for ERP epochs | Existing `reject=dict(eeg=150e-6)` in `mne.Epochs` is appropriate for ERP; autoreject is calibrated for resting-state windows |
+| pyriemann | Riemannian covariance features are for resting-state PSD; ERP features are time-domain amplitude/latency |
+| neurokit2 | Adds large dependency for peak detection that NumPy already handles with `argmax` |
+| mne-bids | ERP .raw files are EGI format, not BIDS — no value here |
+| Deep learning (EEGNet, etc.) | 52 subjects is insufficient; ruled out in PROJECT.md |
+
+### Integration with Existing run_modma_erp.py
+
+The existing skeleton already has the correct structure. Changes are purely additive:
+- Feature extraction: extend from `mean_amp` only → add `peak_amp`, `peak_lat`, `area`, `n200_amp`, `n200_lat`
+- Multi-condition: run `load_erp_features()` per condition, `np.concatenate` per subject before LOSO
+- Permutation test: copy pattern from `modma_mdd_real_experiment.py` — permute subject labels, rerun LOSO, compute p-value
+
+### Sources
+
+- [MNE Evoked.get_data() docs](https://mne.tools/stable/generated/mne.Evoked.html) — confirmed tmin/tmax/picks params, HIGH confidence
+- [MNE Evoked.get_peak() discourse](https://mne.discourse.group/t/how-to-get-the-peak-value-of-each-channel-in-mne/2653) — per-channel limitation confirmed, HIGH confidence
+- [scipy.signal.find_peaks v1.17.0](https://docs.scipy.org/doc/scipy/reference/generated/scipy.signal.find_peaks.html) — available but not needed, HIGH confidence
+- [sklearn permutation_test_score](https://scikit-learn.org/1.0/auto_examples/model_selection/plot_permutation_tests_for_classification.html) — groups param behavior, MEDIUM confidence
+
+---
+*ERP stack addendum researched: 2026-02-22*

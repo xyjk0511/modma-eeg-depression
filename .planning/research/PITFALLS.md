@@ -1,189 +1,250 @@
 # Domain Pitfalls
 
-**Domain:** EEG-based MDD vs HC classification (MODMA 128-channel resting state)
+**Domain:** ERP task-state MDD classification -- P300/N200 features, multi-condition fusion (MODMA dot-probe)
 **Researched:** 2026-02-22
-**Overall confidence:** HIGH (domain literature + codebase analysis)
+**Confidence:** HIGH
+
+---
 
 ## Critical Pitfalls
+### Pitfall 1: ERP Averaging Computed on Full Dataset Before LOSO Split
 
-Mistakes that cause invalid results or require major rework.
+**What goes wrong:**
+The average ERP per subject is computed per-subject independently -- this is safe. The risk is future additions: computing a grand-average ERP across all subjects to define a peak-detection window, or fitting StandardScaler/PCA on all subjects before the LOSO loop. Both constitute leakage.
 
-### Pitfall 1: Differential QC Dropout Creating Artificial Class Imbalance
+**Why it happens:**
+ERP analysis naturally involves group-level operations (grand averages, component latency estimation). Researchers apply these globally for convenience.
 
-**What goes wrong:** When relaxing QC thresholds (e.g. max_bad_channels from 3 to 15), MDD and HC subjects may have systematically different data quality. If MDD patients had more movement artifacts or worse electrode contact, relaxing QC retains more noisy MDD subjects while HC subjects were already clean. The classifier then learns "noisy = MDD" rather than genuine neural signatures.
+**Consequences:**
+Inflated BA. Saarschmidt et al. (Scientific Reports 2021) showed feature selection outside CV inflates accuracy by 10-20% in neuropsychiatric biomarker studies.
 
-**Why it happens:** MDD patients often exhibit psychomotor agitation during recording. The MODMA EDF files have documented physical scaling anomalies (DC offsets like [-5460, -3475] uV) that may affect groups differently.
+**How to avoid:**
+- StandardScaler must be fit inside the LOSO loop on training subjects only -- current Pipeline does this correctly, verify it stays
+- PCA must be fit inside the LOSO loop -- current PCA(n_components=20) inside Pipeline is correct
+- Fixed time windows (250-500ms for P300, 100-250ms for N200) are safe -- they come from literature, not data
+- Any peak-detection window derived from data must not use the test subject
 
-**Consequences:** Above-chance BA driven entirely by artifact-level differences, not neural biomarkers. Permutation test may still pass because the confound is label-correlated.
+**Warning signs:**
+BA suspiciously high (>0.80) on LOSO with N=52. Any fit or transform call outside the Pipeline object.
 
-**Prevention:**
-- After QC, compare retained MDD vs HC counts — target ratio within 1.5:1 of original (24:29)
-- Log per-subject bad-channel counts; compare distributions between groups (Wilcoxon test)
-- If one group loses >20% more subjects than the other, investigate whether QC captures group quality differences vs neural signal
+**Phase to address:** ERP feature extraction phase
 
-**Detection:** Check `qc_report.csv` — if one group loses >30% more subjects than the other, this pitfall is active.
+---
+### Pitfall 2: Trial Rejection Threshold Applied Globally Creates Subject-Level Leakage
 
-**Phase:** QC parameter adjustment (Phase 1)
+**What goes wrong:**
+The current code uses reject=dict(eeg=150e-6) as a fixed amplitude threshold -- this is safe. The risk is if a data-adaptive threshold (e.g., median + k*MAD across all subjects) is used to set the rejection criterion. That would use test-subject trial statistics to define the threshold.
 
-### Pitfall 2: Data Leakage via Window-Level Splitting
+**Why it happens:**
+Adaptive thresholds are better practice for artifact rejection in general EEG, but in a LOSO loop they must be computed per-training-fold or be fixed a priori.
 
-**What goes wrong:** Multiple time windows from the same subject end up in both train and test sets. The classifier learns subject-specific EEG signatures (electrode impedance, skull thickness, individual alpha frequency) rather than MDD vs HC differences. Brookshire et al. (Frontiers in Neuroscience 2024) showed "the majority of translational DNN-EEG studies suffer from data leakage."
+**Consequences:**
+The set of included subjects changes depending on which subject is held out, making the evaluation non-reproducible and potentially biased.
 
-**Why it happens:** Default sklearn CV splits at sample level. With 5-6 windows per subject, random splitting almost guarantees leakage.
+**How to avoid:**
+- Keep reject=dict(eeg=150e-6) as a fixed threshold (current approach is correct)
+- The data.shape[0] < 10 minimum trial count is a fixed threshold -- safe
+- If adaptive thresholds are added, compute them only on training subjects within each LOSO fold
 
-**Consequences:** Reported BA is meaningless — a model memorizing 40 individuals has zero generalization.
+**Warning signs:**
+Subject inclusion set changes when you change the random seed or fold order.
 
-**Prevention:**
-- MUST use `StratifiedGroupKFold` with `groups=subject_id` for all CV (already implemented — verify it stays)
-- Subject-level metric aggregation: average window predictions per subject before computing BA (already implemented via `y_pred_subject_probs`)
-- Never use `StratifiedKFold` or `ShuffleSplit` without group constraints
+**Phase to address:** ERP feature extraction phase
 
-**Detection:** Assert `train_groups.isdisjoint(test_groups)` in every CV loop. Current code has `leakage_detected` flag — keep it.
+---
+### Pitfall 3: Multi-Condition Feature Concatenation Triples Dimensionality Without Tripling Information
 
-**Phase:** All phases (invariant constraint)
+**What goes wrong:**
+Concatenating hcue + fcue + scue features produces 3x the feature dimensions (e.g., 128 channels x 3 conditions = 384 dims) for the same N=52 subjects. With LOSO, each fold trains on 51 subjects. The effective degrees of freedom are ~51 subjects -- the conditions are correlated within-subject. A classifier with 384 features and 51 training samples will overfit severely.
 
-### Pitfall 3: Feature Selection / Hyperparameter Tuning Outside CV
+**Why it happens:**
+Multi-condition fusion seems like "more data" but it is more features from the same subjects. The feature-to-sample ratio worsens, not improves.
 
-**What goes wrong:** Feature selection or QC threshold selection performed on full dataset before cross-validation leaks test-set information. Saarschmidt et al. (Scientific Reports 2021) showed this inflates accuracy by 10-20% in neuropsychiatric biomarker studies.
+**Consequences:**
+BA near chance or worse than single-condition. Current results show this pattern: hcue BA=0.670, fcue BA=0.410, scue BA=0.536. Naive concatenation will likely produce BA near 0.5 unless dimensionality is aggressively reduced.
 
-**Why it happens:** Computationally convenient to select features once, then run CV. Current pipeline correctly nests QC search inside outer CV, but refactoring could break this.
+**How to avoid:**
+- Apply PCA inside the LOSO loop before concatenation, or reduce each condition to a small number of components first
+- Target total features < N_train / 5 = 51/5 ~ 10 features after fusion
+- Consider condition-level aggregation: compute a single scalar per condition (e.g., mean frontal P300 amplitude) rather than all 128 channels
+- Alternatively, use only the best single condition (hcue) and treat multi-condition as an ablation
 
-**Consequences:** Optimistic BA that does not replicate on held-out data.
+**Warning signs:**
+Feature matrix shape after concatenation exceeds 50 columns. BA drops below single-condition baseline after fusion.
 
-**Prevention:**
-- All data-dependent decisions (QC threshold, feature selection, hyperparameters) must stay inside CV loop
-- `run_full_model_selection()` correctly nests QC search — do not refactor this out
-- If adding new feature selection, wrap it in inner CV
+**Phase to address:** Multi-condition fusion phase
 
-**Detection:** Code review: grep for `fit`, `transform`, `SelectKBest`, or threshold selection touching test indices.
+---
+### Pitfall 4: P300/N200 Window Fixed at Literature Values May Miss Actual Component in This Dataset
 
-**Phase:** Feature engineering and model selection phases
+**What goes wrong:**
+The P300 window (250-500ms) is standard for auditory/visual oddball paradigms. The MODMA dot-probe task uses a different stimulus type and timing. The actual P300 peak may be shifted (e.g., 300-600ms for cognitive tasks). Using a fixed window that misses the actual peak produces near-zero discriminative features.
 
-### Pitfall 4: Filter Edge Effects Contaminating Window 0
+**Why it happens:**
+Researchers apply standard windows from the literature without verifying them on the actual dataset grand-average ERP.
 
-**What goes wrong:** The first time window after highpass filtering contains filter transient artifacts — elevated bad-channel counts that are not real neural noise. Including Window 0 inflates QC rejection rates and wastes data, or if kept, injects non-neural variance into features.
+**Consequences:**
+Features capture noise rather than the component of interest. BA near chance even if the component genuinely differs between MDD and HC.
 
-**Why it happens:** IIR/FIR highpass filters need a settling period. At 0.5 Hz highpass with 250 Hz sampling, the transient can last 2-6 seconds — a significant portion of a 10-second window. PROJECT.md confirms: "Window 0 bad channel count is far higher than subsequent windows."
+**How to avoid:**
+- Plot the grand-average ERP (mean across all subjects) for each condition before defining feature windows
+- Verify a positive deflection exists in the 250-500ms range for hcue condition
+- If the peak is shifted, adjust the window based on the grand average -- this is a fixed, data-independent decision made before any CV, not leakage
+- For N200: verify a negative deflection exists in 100-250ms
 
-**Consequences:** Either excessive subject dropout (if QC catches it) or contaminated features (if QC misses it). Both degrade classification.
+**Warning signs:**
+Mean P300 amplitude across all subjects is near zero or negative. Feature variance is very low.
 
-**Prevention:**
-- Skip Window 0 unconditionally after filtering
-- Alternatively, add `raw.crop(tmin=6.0)` before windowing to discard the transient period
-- Verify by comparing bad-channel distributions of Window 0 vs Windows 1+ across all subjects
+**Phase to address:** ERP feature extraction phase (verification step before LOSO)
 
-**Detection:** Plot per-window bad-channel counts — Window 0 should not be a consistent outlier after the fix.
+---
+### Pitfall 5: Multiple Comparisons Across Conditions Inflates Type I Error
 
-**Phase:** QC parameter adjustment (Phase 1)
+**What goes wrong:**
+Running permutation tests separately for hcue, fcue, and scue, then reporting the best p-value, inflates Type I error by a factor of 3. With 3 conditions and alpha=0.05, the expected false positive rate is ~14%.
+
+**Why it happens:**
+Each condition is analyzed independently and the best result is highlighted. This is implicit p-hacking even without intent.
+
+**Consequences:**
+A p<0.05 result for one condition may be a false positive. The current hcue BA=0.670 needs a valid permutation p-value with multiple comparison correction.
+
+**How to avoid:**
+- Apply Bonferroni correction: require p<0.017 per condition if testing 3 conditions
+- Or pre-specify the primary condition (hcue, as it has the highest BA) before running permutation tests
+- Report all three condition results regardless of significance
+
+**Warning signs:**
+Only the best-performing condition has a permutation test run. p-values reported without multiple comparison correction.
+
+**Phase to address:** Statistical validation phase
+
+---
+### Pitfall 6: Permutation Test Permutes at Wrong Level
+
+**What goes wrong:**
+In the ERP pipeline, each subject contributes exactly one feature vector (the avg-ERP). LOSO operates at subject level. If a permutation test permutes the y array at the trial level rather than the subject level, the null distribution is invalid -- too narrow, producing falsely significant p-values.
+
+**Why it happens:**
+Copy-paste from the resting-state pipeline where windows were the unit of analysis.
+
+**Consequences:**
+Null distribution is too narrow, producing falsely significant p-values.
+
+**How to avoid:**
+- In the ERP pipeline, y has one entry per subject -- permuting y directly is correct
+- Assert len(y) == len(np.unique(subject_ids)) before running permutation test
+- If trial-level features are added later, permute subject labels and propagate to all trials of that subject
+
+**Warning signs:**
+len(y) equals number of trials rather than number of subjects.
+
+**Phase to address:** Statistical validation phase
+
+---
 
 ## Moderate Pitfalls
 
-### Pitfall 5: Overfitting with 144 Features on ~40 Subjects
+### Pitfall 7: N200 and P300 Features Are Highly Correlated
 
-**What goes wrong:** The current pipeline extracts 144-dimensional features from ~35-40 retained subjects (each contributing 5-6 windows, so ~200 samples). With p >> n at the subject level, classifiers memorize noise. Even with CV, the effective degrees of freedom are limited by the ~40 independent subjects, not the ~200 correlated windows.
+**What goes wrong:**
+N200 (100-250ms) and P300 (250-500ms) are adjacent in time. If the P300 is large, the N200 window may capture the rising edge of the P300 rather than the N200 trough. The two features will be highly correlated, adding dimensionality without adding information.
 
-**Why it happens:** Feature count grew organically (PSD + DE + Hjorth + asymmetry + connectivity + Riemannian = 144 dims). Each addition seemed small, but the cumulative dimensionality is excessive for this sample size.
+**How to avoid:**
+- Verify N200 and P300 features have low correlation (|r| < 0.5) across subjects
+- If correlation is high, use only the more discriminative feature
+- Consider peak amplitude (min in N200 window, max in P300 window) rather than mean amplitude to better isolate each component
 
-**Prevention:**
-- Apply dimensionality reduction inside CV: PCA(n_components=0.95) or SelectKBest(k=20-30)
-- Rule of thumb: effective features should be < n_subjects / 5, so target ~8 features for 40 subjects
-- Consider region-level aggregation to reduce redundancy before classification
+**Phase to address:** ERP feature extraction phase
 
-**Detection:** Compare CV BA with and without PCA — if PCA improves BA, overfitting was present.
+---
+### Pitfall 8: Latency Features Are Noisy at N=52
 
-**Phase:** Feature engineering (Phase 2)
+**What goes wrong:**
+Peak latency (argmax of avg-ERP in the P300 window) is a single-sample measurement with high variance. With only 52 subjects and noisy avg-ERPs, latency features add noise rather than signal.
 
-### Pitfall 6: Amplitude Threshold Insensitive to EDF Scaling Anomalies
+**How to avoid:**
+- Treat latency features as secondary to amplitude features
+- If latency is included, use a smoothed estimate (centroid of the P300 window rather than argmax)
+- Evaluate latency features F-scores in ablation -- if F < 2.0, exclude
 
-**What goes wrong:** The current `bad_amp_uv=200` threshold assumes data is in standard microvolt range. But PROJECT.md documents that MODMA EDF headers have large DC offsets (physical range like [-5460, -3475] uV). After highpass filtering the DC is removed, but residual scaling issues may leave some channels with amplitudes that are systematically above or below the threshold — rejecting valid data or passing bad data.
+**Phase to address:** ERP feature extraction phase
 
-**Why it happens:** EDF physical min/max calibration varies across recording sessions. A fixed uV threshold does not adapt to per-file scaling.
+---
 
-**Prevention:**
-- After filtering, check actual amplitude distributions per subject before applying threshold
-- Consider percentile-based rejection (e.g. reject channels > 99th percentile of all channels) instead of fixed uV
-- At minimum, test multiple thresholds (200, 300, 400 uV) — already in `bad_amp_candidates`
+### Pitfall 9: Channel Selection by Inspecting Full-Dataset Topographic Map
 
-**Detection:** Log median and max amplitude per subject after filtering. If values cluster far from 200 uV, the threshold is miscalibrated.
+**What goes wrong:**
+If channels are selected based on which channels show the largest MDD vs HC difference in the full dataset, and those channels are then used as features in LOSO, this is feature selection leakage. The current approach uses all 128 channels + PCA inside Pipeline -- this is safe.
 
-**Phase:** QC parameter adjustment (Phase 1)
+**How to avoid:**
+- Use literature-defined channel sets (Pz, Cz, Fz for P300) rather than data-driven selection
+- Or use PCA inside the LOSO loop (current approach -- keep it)
+- Never select channels by inspecting the full-dataset difference map
 
-### Pitfall 7: Permutation Test Invalidated by Correlated Windows
+**Phase to address:** ERP feature extraction phase
 
-**What goes wrong:** The permutation test shuffles subject-level labels and reruns the full pipeline, but the p-value assumes independent samples. With 5-6 correlated windows per subject, the effective sample size is ~40, not ~200. If the permutation test uses window-level BA instead of subject-level BA, the null distribution is too narrow, producing falsely significant p-values.
+---
+## Technical Debt Patterns
 
-**Why it happens:** The current `build_report()` correctly permutes at the subject level and evaluates subject-level BA. But the permutation rerun uses `run_full_model_selection()` which includes inner CV — if inner CV folds are too small after permutation, some permutations silently fail and get dropped, biasing the null distribution.
+| Shortcut | Immediate Benefit | Long-term Cost | When Acceptable |
+|----------|-------------------|----------------|-----------------|
+| All 128 channels as features | No channel selection needed | 128 dims forces PCA; PCA components uninterpretable | Acceptable with PCA inside CV |
+| Fixed P300 window (250-500ms) | No dataset-specific tuning | May miss actual peak if shifted | Acceptable if grand-average ERP verified first |
+| Single condition (hcue only) | Avoids multi-condition dimensionality problem | Misses condition-specific MDD effects | Acceptable as baseline |
+| Mean amplitude only (no latency, no area) | Simple, low-variance feature | Misses latency differences | Acceptable for initial validation |
 
-**Prevention:**
-- Always permute at subject level (already correct)
-- Always evaluate subject-level BA in permutations (already correct)
-- Log the fraction of failed permutations — if >10% fail, the null distribution is biased
-- Use at least 1000 permutations for reliable p-value at alpha=0.05
+---
 
-**Detection:** Check `effective_permutations` in metrics.json — should be >900 out of 1000.
+## "Looks Done But Isn't" Checklist
 
-**Phase:** Statistical validation (Phase 3)
+- [ ] **ERP averaging:** Verify avg_erp is computed per-subject independently, not using any cross-subject statistics
+- [ ] **Scaler/PCA inside CV:** Verify StandardScaler and PCA are inside the Pipeline object, not fit before loo.split()
+- [ ] **Grand-average ERP plotted:** Verify P300 peak exists in 250-500ms window before reporting features
+- [ ] **Permutation test at subject level:** Verify len(y) == n_subjects, not n_trials
+- [ ] **Multiple comparison correction:** If testing 3 conditions, apply Bonferroni or pre-specify primary condition
+- [ ] **Multi-condition dimensionality:** If concatenating conditions, verify total features < 10 after reduction
+- [ ] **Trial count balance:** Verify MDD and HC subjects have similar trial counts (unequal trials -> unequal SNR -> confound)
 
-### Pitfall 8: Average Reference Amplifying Bad Channels
+---
 
-**What goes wrong:** The pipeline applies average reference (`raw.set_eeg_reference('average')`) before QC. If a few channels have extreme amplitudes (common with MODMA's scaling issues), the average reference spreads that noise to ALL channels, making previously good channels appear bad.
+## Recovery Strategies
 
-**Why it happens:** Average reference subtracts the mean across channels at each time point. One channel at 500 uV shifts all 127 other channels by ~4 uV — small individually, but systematic.
+| Pitfall | Recovery Cost | Recovery Steps |
+|---------|---------------|----------------|
+| Scaler fit outside CV | LOW | Move scaler inside Pipeline; re-run LOSO |
+| Wrong P300 window | LOW | Plot grand-average ERP; adjust window; re-run |
+| Multi-condition dimensionality explosion | MEDIUM | Add PCA(n_components=5) per condition inside CV; re-run |
+| Multiple comparison inflation | LOW | Apply Bonferroni; re-report p-values |
+| Permutation at trial level | MEDIUM | Rewrite permutation loop to permute subject labels; re-run 1000 permutations |
 
-**Prevention:**
-- Identify and interpolate or exclude grossly bad channels BEFORE applying average reference
-- Or use robust average reference (median instead of mean)
-- At minimum, run QC twice: once to find extreme channels, exclude them from reference, then re-reference
+---
 
-**Detection:** Compare bad-channel counts before vs after re-referencing. If re-referencing increases bad channels, this pitfall is active.
+## Pitfall-to-Phase Mapping
 
-**Phase:** Preprocessing (Phase 1)
+| Pitfall | Prevention Phase | Verification |
+|---------|------------------|--------------|
+| ERP averaging leakage (Pitfall 1) | ERP feature extraction | Assert no cross-subject ops outside Pipeline |
+| Trial rejection threshold leakage (Pitfall 2) | ERP feature extraction | Confirm reject dict is fixed, not data-derived |
+| Multi-condition dimensionality (Pitfall 3) | Multi-condition fusion | Assert features.shape[1] < 15 after fusion |
+| Wrong P300/N200 window (Pitfall 4) | ERP feature extraction | Plot grand-average ERP before LOSO |
+| Multiple comparison inflation (Pitfall 5) | Statistical validation | Bonferroni or pre-specified primary condition |
+| Permutation at wrong level (Pitfall 6) | Statistical validation | Assert len(y) == n_subjects |
+| N200/P300 correlation (Pitfall 7) | ERP feature extraction | Check feature correlation matrix |
+| Latency feature noise (Pitfall 8) | ERP feature extraction | F-score ablation; exclude if F < 2.0 |
+| Channel selection leakage (Pitfall 9) | ERP feature extraction | Use literature channels or PCA inside CV only |
 
-## Minor Pitfalls
-
-### Pitfall 9: Connectivity Features Dominated by Volume Conduction
-
-**What goes wrong:** Region-averaged signals used for connectivity (ImCoh) reduce spatial resolution. Averaging channels within a region creates a "virtual electrode" that may capture volume-conducted activity rather than true inter-regional communication. The imaginary part of coherence mitigates zero-lag volume conduction, but region-averaging can introduce artificial phase delays.
-
-**Prevention:**
-- Use representative single channels per region instead of averages for connectivity
-- Verify ImCoh values are in plausible range (0.01-0.3 for resting state)
-- Compare connectivity features' discriminative power (f_classif scores) against simpler PSD features
-
-**Phase:** Feature engineering (Phase 2)
-
-### Pitfall 10: Medication Confound in MDD Group
-
-**What goes wrong:** MDD patients in MODMA are likely on psychotropic medication (SSRIs, benzodiazepines) which directly alter EEG power spectra — particularly alpha and beta bands. The classifier may learn medication signatures rather than depression biomarkers.
-
-**Prevention:**
-- Check MODMA participants.tsv for medication status columns
-- If medication data available, include as covariate or run sensitivity analysis excluding medicated subjects
-- Report this as a known limitation if medication data is unavailable
-
-**Phase:** Interpretation (Phase 3)
-
-## Phase-Specific Warnings
-
-| Phase Topic | Likely Pitfall | Mitigation |
-|-------------|---------------|------------|
-| QC parameter relaxation | Pitfall 1: Differential dropout | Compare MDD/HC retention rates in qc_report.csv |
-| QC parameter relaxation | Pitfall 6: Amplitude miscalibration | Log amplitude distributions, test multiple thresholds |
-| Skip Window 0 | Pitfall 4: Filter transient | Verify bad-channel counts normalize after W0 removal |
-| Preprocessing | Pitfall 8: Average reference noise spread | Exclude bad channels before re-referencing |
-| Feature engineering | Pitfall 5: Overfitting (144 dims, ~40 subjects) | PCA or SelectKBest inside CV, target <10 effective features |
-| Feature engineering | Pitfall 9: Volume conduction in connectivity | Check ImCoh plausibility, compare vs PSD-only baseline |
-| Model selection | Pitfall 3: Tuning outside CV | All data-dependent choices inside CV loop |
-| Statistical validation | Pitfall 2: Window-level leakage | StratifiedGroupKFold + subject-level BA always |
-| Statistical validation | Pitfall 7: Biased permutation null | Monitor effective_permutations, require >90% success |
-| Interpretation | Pitfall 10: Medication confound | Report as limitation, check for medication metadata |
+---
 
 ## Sources
 
-- [Data leakage in deep learning studies of translational EEG](https://www.frontiersin.org/articles/10.3389/fnins.2024.1373515/full) — Brookshire et al., Frontiers in Neuroscience 2024. HIGH confidence.
-- [Inflated prediction accuracy of neuropsychiatric biomarkers caused by data leakage in feature selection](https://www.nature.com/articles/s41598-021-87157-3) — Scientific Reports 2021. HIGH confidence.
-- [Technical and clinical considerations for EEG-based biomarkers for MDD](https://www.nature.com/articles/s44184-023-00038-7) — Nature Mental Health 2023. HIGH confidence.
-- [EEG is better left alone](https://www.nature.com/articles/s41598-023-27528-0) — Nature Scientific Reports 2023. MEDIUM confidence.
-- [Autoreject: Automated artifact rejection for MEG and EEG data](https://www.researchgate.net/publication/311925766_Autoreject_Automated_artifact_rejection_for_MEG_and_EEG_data) — NeuroImage 2017. HIGH confidence.
-- [A multi-modal open dataset for mental-disorder analysis (MODMA)](https://www.nature.com/articles/s41597-022-01211-x) — Scientific Data 2022. HIGH confidence.
-- [Opportunities and Challenges for Clinical Practice in Detecting Depression Using EEG and ML](https://www.mdpi.com/1424-8220/25/2/409) — Sensors 2025. MEDIUM confidence.
+- [Data leakage in deep learning studies of translational EEG](https://www.frontiersin.org/journals/neuroscience/articles/10.3389/fnins.2024.1373515/full) -- Brookshire et al., Frontiers in Neuroscience 2024. HIGH confidence.
+- [Inflated prediction accuracy of neuropsychiatric biomarkers caused by data leakage in feature selection](https://www.nature.com/articles/s41598-021-87157-3) -- Saarschmidt et al., Scientific Reports 2021. HIGH confidence.
+- [Risk of data leakage in estimating diagnostic performance for psychiatric disorders](https://www.nature.com/articles/s41598-023-43542-8) -- Nature Scientific Reports 2023. HIGH confidence.
+- [Striking a balance: analyzing unbalanced ERP data](https://www.frontiersin.org/journals/psychology/articles/10.3389/fpsyg.2015.00555/full) -- Frontiers in Psychology 2015. MEDIUM confidence.
+- [Technical and clinical considerations for EEG-based biomarkers for MDD](https://www.nature.com/articles/s44184-023-00038-7) -- Nature Mental Health 2023. HIGH confidence.
+- Codebase analysis: run_modma_erp.py -- current ERP pipeline with LOSO, avg-ERP per subject, 128-channel P300 features. HIGH confidence (direct inspection).
+
+---
+*Pitfalls research for: ERP task-state MDD classification (P300/N200 features, multi-condition fusion)*
+*Researched: 2026-02-22*

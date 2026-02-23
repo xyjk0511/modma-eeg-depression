@@ -1,156 +1,143 @@
 # Feature Research
 
-**Domain:** EEG-based MDD vs HC binary classification (resting-state, 128-channel, MODMA dataset)
+**Domain:** ERP task-state MDD vs HC binary classification (dot-probe hcue/fcue/scue, 128-channel, MODMA)
 **Researched:** 2026-02-22
-**Confidence:** MEDIUM (training data + multiple web sources agree; no Context7 for neuroscience domain)
+**Confidence:** MEDIUM (multiple web sources + official literature)
+
+## Context: What Already Exists
+
+Existing pipeline (resting-state): PSD band power, FAA, Riemannian covariance, theta/beta ratio, MNE epoch extraction.
+Current ERP baseline: hcue avg-ERP P300 mean amplitude per channel -> BA=0.670 (52 subjects, LOSO).
+This file covers ONLY new ERP task-state features to add on top of that baseline.
+
+---
 
 ## Feature Landscape
 
-### Table Stakes (Results Are Unreliable Without These)
+### Table Stakes (Expected in Any ERP-Based MDD Pipeline)
 
 | Feature | Why Expected | Complexity | Notes |
 |---------|--------------|------------|-------|
-| **Relaxed QC thresholds (max_bad_channels ~15%)** | Current `max_bad_channels=3` for 128ch drops 80% of subjects. EGI-128 community standard is ~15% (~19 channels). With only 11/53 subjects, no classifier can learn. | LOW | Change from 3 to ~15-19. Single param. Most impactful fix. |
-| **Bad channel interpolation (spherical spline)** | Instead of rejecting windows with bad channels, interpolate them. Preserves data. MNE `raw.interpolate_bads()`. Standard for high-density EEG. | MEDIUM | Detect bad channels via z-score on variance, interpolate, then proceed. |
-| **Skip Window 0 (filter transient)** | First window after highpass has edge artifacts causing inflated bad-channel counts. Documented in PROJECT.md diagnostics. | LOW | Skip first `window_sec` after filtering. One-line fix. |
-| **Highpass filter >= 0.5 Hz** | Removes DC offset and slow drifts. "EEG is better left alone" (Delorme 2023) confirms highpass + bad channel interpolation are the two steps that reliably help. | LOW | Already done at 0.5 Hz. Keep as-is. |
-| **Subject-level evaluation** | Windows from same subject are correlated. Window-level eval inflates accuracy. Must use StratifiedGroupKFold + subject-level vote. | LOW | Already implemented correctly. Keep as-is. |
-| **PSD band power (delta/theta/alpha/beta)** | Most replicated EEG biomarker for MDD. Every review includes these. Theta and alpha power differences are the most consistent findings. | LOW | Already implemented. 5 regions x 4 bands x 2 (abs+rel) = 40 dims. |
-| **Frontal alpha asymmetry (FAA)** | Most studied single EEG biomarker for depression. Small effect sizes, debated reproducibility, but expected in any MDD pipeline. | LOW | Already implemented. 1 dim. |
-| **Adaptive amplitude threshold** | Fixed 200uV is too strict for this dataset (EDF physical range has DC offsets). Need per-subject adaptive threshold (median + N*MAD). | MEDIUM | Replace fixed threshold with robust statistical threshold per subject. |
+| P300 peak amplitude (per channel) | Most replicated ERP biomarker for MDD. MDD shows reduced P300 amplitude vs HC. Peak is more precise than mean. | LOW | avg_erp[:, p300_mask].max(axis=1) -- 128 dims. |
+| P300 peak latency (per channel) | MDD shows longer P300 latency. Frontal P300 latency is candidate biomarker of MDD (Frontiers 2022). Pz and C3 latency discriminates MDD subtypes. | LOW | times[p300_mask][argmax] -- 128 dims. |
+| P300 area under curve (per channel) | Integrates amplitude over time window. More robust than peak to noise. Standard in clinical ERP literature. | LOW | avg_erp[:, p300_mask].sum(axis=1) * dt -- 128 dims. |
+| N200 mean amplitude (100-250ms, per channel) | N200 reflects early attentional engagement. MDD shows altered N200 for emotional stimuli. Negative component; MDD shows reduced negativity for happy, enhanced for sad. | LOW | Same extraction as P300 but N200_WIN=(0.10, 0.25). 128 dims. |
+| N200 peak amplitude (per channel) | Peak captures the trough of N200. More sensitive than mean for detecting attentional bias differences. | LOW | avg_erp[:, n200_mask].min(axis=1) -- most negative point. 128 dims. |
+| Frontal/parietal ROI reduction | Full 128-channel vectors are high-dimensional for N=52. Literature identifies Fz, Cz, Pz as most discriminative for P300; frontal sites for N200. | LOW | Average over ROI channel groups. Reduces 128 dims to ~5-10. |
 
-### Differentiators (Competitive Advantage in Accuracy)
+### Differentiators (Features That Can Push BA Above 0.70)
 
 | Feature | Value Proposition | Complexity | Notes |
 |---------|-------------------|------------|-------|
-| **Nonlinear entropy (SampEn, ApEn)** | MDD shows altered EEG complexity. Frontal alpha SampEn distinguishes mild depression from HC. HFD + SampEn achieved strong classification in multiple studies. | MEDIUM | ~20-40 new dims. Use `antropy` lib or ~20 lines numpy. |
-| **Aperiodic (1/f) features via specparam** | MDD shows decreased aperiodic exponent (flatter 1/f slope), reflecting altered E/I balance. Separating periodic from aperiodic gives cleaner features than raw band power. | MEDIUM | `specparam` library. Exponent + offset per region. ~10 dims. |
-| **Lempel-Ziv Complexity (LZC)** | Increased LZC in depression vs controls, strongest at frontal sites (p=0.0098 at F4). Captures complexity entropy may miss. | LOW | Binary median-split + LZ76 algorithm. ~5 dims. Pure numpy. |
-| **Theta/beta ratio (TBR)** | Elevated TBR associated with attentional/emotional dysregulation in depression. Simple, clinically interpretable. | LOW | Ratio of existing band powers. ~5 dims. |
-| **Gamma band power (30-45 Hz)** | Currently missing (bands stop at 30 Hz). Gamma abnormalities in MDD reported. Completes spectral picture. | LOW | Extend band dict. ~10 dims. Data already available (filter to 45 Hz). |
-| **wPLI connectivity** | More robust than ImCoh against volume conduction. Standard in MNE-connectivity. | MEDIUM | Replace or supplement ImCoh. Same ~40 dims. Needs `mne-connectivity`. |
-| **Phase-Amplitude Coupling (PAC)** | Theta-gamma PAC altered in depression, reflects disrupted cross-frequency communication. | HIGH | Modulation index per region. Computationally expensive. ~5-10 dims. |
-| **Multiscale nonlinear fusion** | Cross-subject MDD detection achieved 72-85% accuracy. High-frequency scale LZC particularly effective. | HIGH | Features at multiple coarse-grained scales. Multiplies feature count. |
+| Multi-condition concatenation (hcue + fcue + scue) | Each condition captures different emotional processing: sad cues show enhanced P3 in MDD (negative bias), happy cues show reduced P1/P3 (positive blunting). ACM 2024: best accuracy 79.84% when all ERP components used as combined feature set. | MEDIUM | Compute features per condition, concatenate vectors. Requires >=10 trials per condition per subject. |
+| Condition contrast (scue - hcue) | MDD is hypersensitive to sad, hyposensitive to happy. Difference between sad and happy condition responses is a direct biomarker of asymmetric emotional bias. More informative than either condition alone. | LOW | feat_scue - feat_hcue per feature type. ~128 dims. Requires multi-condition. |
+| P300 topographic gradient (frontal/parietal ratio) | MDD shows altered fronto-parietal P300 distribution. Ratio of frontal to parietal P300 amplitude captures this spatial shift. | LOW | mean(frontal_ch) / mean(parietal_ch) per condition. ~3 dims. |
+| N200 latency (per channel) | Latency of N200 reflects speed of early attentional capture. MDD shows altered timing of early emotional processing. Complements amplitude. | LOW | times[n200_mask][argmin] -- 128 dims. |
+| Single-trial variability (std across trials) | MDD shows increased trial-to-trial variability in ERP responses, reflecting unstable attentional engagement. Mean ERP discards this signal. | MEDIUM | data.std(axis=0)[:, p300_mask].mean(axis=1). Requires keeping raw trial data in memory. |
 
-### Anti-Features (Things to Deliberately NOT Do)
+### Anti-Features (Commonly Considered, Often Problematic)
 
 | Feature | Why Requested | Why Problematic | Alternative |
 |---------|---------------|-----------------|-------------|
-| **Deep learning (CNN/Transformer)** | Papers report 95-99% accuracy | With ~40 subjects, massive overfit. Those accuracies use within-subject splits. LOSO drops to ~37%. | SVM/LR/LightGBM with regularization. |
-| **ICA artifact removal** | Standard preprocessing | Delorme 2023 showed ICA rejection didn't reliably improve classification. Interpolation before ICA creates ghost ICs from rank deficiency. | Bad channel interpolation + amplitude rejection. |
-| **Aggressive bandpass (1-40 Hz)** | Remove noise | Loses gamma (30-45 Hz) and sub-delta. Current 0.5-45 Hz is appropriate. | Keep 0.5-45 Hz. |
-| **Very short windows (< 5s)** | More training samples | Poor spectral resolution for delta. More windows don't help -- subject-level eval negates the benefit. | Keep 10-sec windows. |
-| **Source localization (eLORETA)** | Better spatial specificity | Requires head model + digitized positions. MODMA may lack these. Massive complexity, uncertain gain with small N. | Sensor-space features with region averaging. |
-| **Complex feature selection (mRMR, GA)** | Optimal subset | With N~40, complex selection overfits. | PCA(0.95) or SelectKBest(k=20-30). |
-| **Window-level accuracy reporting** | Higher numbers | Inflated by within-subject correlation. Not valid generalization estimate. | Subject-level balanced accuracy + permutation test. |
+| Full 128-channel raw ERP vectors without ROI reduction | Maximum information retention | 128ch x 3 features x 3 conditions = 1152 dims for N=52. Extreme curse of dimensionality. | ROI-averaged features + PCA(20). |
+| Per-trial classification | More training samples | Trials from same subject are correlated. Trial-level accuracy is inflated. Same problem as window-level for resting-state. | Subject-level LOSO with avg-ERP features. |
+| Condition averaging across hcue/fcue/scue | Simplifies feature space | Destroys condition-specific emotional processing differences that are the main signal. | Concatenate per-condition features or compute contrasts. |
+| Deep learning on ERP waveforms | Papers report high accuracy | N=52 is far too small for cross-subject generalization. | LR/SVM with PCA on handcrafted ERP features. |
+
+---
 
 ## Feature Dependencies
 
-```
-[Bad Channel Interpolation]
-    └──requires──> [Relaxed QC Thresholds]
-                       └──enables──> [More Subjects (35-40)]
-                                         └──enables──> [Meaningful Classification]
 
-[Skip Window 0]
-    └──enhances──> [QC Pass Rate]
-
-[Aperiodic Features (specparam)]
-    └──requires──> [PSD Computation] (already exists)
-    └──conflicts──> [Raw Band Power] (aperiodic-corrected peaks replace raw)
-
-[Nonlinear Features (SampEn, LZC)]
-    └──independent of──> [PSD Features] (complementary representations)
-
-[wPLI Connectivity]
-    └──enhances──> [ImCoh Connectivity] (can replace or supplement)
-
-[Gamma Band]
-    └──requires──> [Low-pass >= 45 Hz] (already satisfied)
-```
 
 ### Dependency Notes
 
-- **Bad Channel Interpolation requires Relaxed QC:** Interpolation is the mechanism that makes relaxed thresholds safe -- you fix bad channels instead of rejecting windows.
-- **Aperiodic features conflict with raw band power:** Once you decompose PSD into periodic + aperiodic, the corrected periodic peaks are more meaningful. Can keep both but partially redundant.
-- **Nonlinear features are independent:** SampEn and LZC operate on time-domain signal, complementary to frequency-domain PSD.
-- **More subjects enables meaningful CV:** With 11 subjects, 5-fold CV has ~2 per fold. With 40, you get ~8 per fold -- much more stable.
+- N200 and P300 share the same epoch data -- extract both in one pass to avoid reloading raw files.
+- Multi-condition concatenation requires all 3 conditions to have enough trials. Subjects with <10 trials in any condition must be excluded (may reduce N slightly).
+- Single-trial variability conflicts with current memory management (data deleted after avg_erp). Requires architectural change.
+- ROI reduction should happen before PCA -- it encodes domain knowledge about which channels matter.
+
+---
 
 ## MVP Definition
 
-### Launch With (v1) -- Fix QC to Get Enough Subjects
+### Launch With (v1) -- Enrich P300, Add N200, Multi-Condition
 
-- [x] Relax `max_bad_channels` from 3 to ~15 (12% of 128) -- **most critical fix**
-- [x] Skip Window 0 (filter transient) -- **easy win**
-- [ ] Add bad channel interpolation (spherical spline via MNE) -- **preserves data quality**
-- [ ] Adaptive amplitude threshold (median + 5*MAD per subject) -- **replaces brittle 200uV**
-- [ ] Target: 35-40 subjects retained, BA > 0.60
+- [ ] P300 peak amplitude per channel (LOW)
+- [ ] P300 peak latency per channel (LOW)
+- [ ] P300 area under curve per channel (LOW)
+- [ ] N200 mean + peak amplitude per channel 100-250ms (LOW)
+- [ ] Multi-condition concatenation: hcue + fcue + scue (MEDIUM)
+- [ ] Condition contrast scue - hcue: direct negative-bias biomarker (LOW, requires multi-condition)
 
-### Add After Validation (v1.x) -- Feature Engineering
+### Add After Validation (v1.x)
 
-- [ ] Nonlinear features: SampEn per region per band (~20 dims)
-- [ ] Aperiodic features via specparam: exponent + offset per region (~10 dims)
-- [ ] LZC per region (~5 dims)
-- [ ] Gamma band power (~10 dims)
-- [ ] Theta/beta ratio (~5 dims)
+- [ ] ROI-averaged features at Fz/Cz/Pz groups
+- [ ] Condition contrast fcue - hcue
+- [ ] P300 topographic gradient frontal/parietal ratio
+- [ ] N200 latency per channel
 
 ### Future Consideration (v2+)
 
-- [ ] wPLI connectivity (replace ImCoh) -- defer until v1.x features evaluated
-- [ ] Phase-amplitude coupling -- high complexity, defer
-- [ ] Multiscale entropy -- defer until single-scale entropy proven
-- [ ] Microstate features -- requires separate analysis pipeline
+- [ ] Single-trial variability -- requires memory architecture change
+- [ ] Fusion with resting-state features
+
+---
 
 ## Feature Prioritization Matrix
 
-| Feature | User Value | Implementation Cost | Priority |
-|---------|------------|---------------------|----------|
-| Relax max_bad_channels to ~15 | HIGH | LOW | **P1** |
-| Skip Window 0 | HIGH | LOW | **P1** |
-| Bad channel interpolation | HIGH | MEDIUM | **P1** |
-| Adaptive amplitude threshold | HIGH | MEDIUM | **P1** |
-| Sample Entropy (per region) | MEDIUM | MEDIUM | **P2** |
-| Aperiodic features (specparam) | MEDIUM | MEDIUM | **P2** |
-| Lempel-Ziv Complexity | MEDIUM | LOW | **P2** |
-| Gamma band power | LOW | LOW | **P2** |
-| Theta/beta ratio | LOW | LOW | **P2** |
-| wPLI connectivity | MEDIUM | MEDIUM | **P3** |
-| Phase-amplitude coupling | LOW | HIGH | **P3** |
-| Multiscale entropy | LOW | HIGH | **P3** |
+| Feature | Classification Value | Implementation Cost | Priority |
+|---------|---------------------|---------------------|----------|
+| P300 peak amplitude per channel | HIGH | LOW | P1 |
+| P300 peak latency per channel | HIGH | LOW | P1 |
+| N200 mean amplitude per channel | HIGH | LOW | P1 |
+| P300 area under curve | MEDIUM | LOW | P1 |
+| Multi-condition concatenation | HIGH | MEDIUM | P1 |
+| Condition contrast scue - hcue | HIGH | LOW | P1 |
+| N200 peak amplitude | MEDIUM | LOW | P2 |
+| N200 latency | MEDIUM | LOW | P2 |
+| ROI reduction Fz/Cz/Pz groups | MEDIUM | LOW | P2 |
+| P300 topographic gradient | MEDIUM | LOW | P2 |
+| Single-trial variability | MEDIUM | HIGH | P3 |
 
 **Priority key:**
-- P1: Must have -- fixes the core QC bottleneck (11 -> 40 subjects)
-- P2: Should have -- adds discriminative features once sample size is fixed
-- P3: Nice to have -- advanced features for marginal gains
+- P1: Must have -- directly addresses milestone goal
+- P2: Should have -- adds spatial/temporal specificity after P1 validated
+- P3: Nice to have -- marginal gains, higher complexity
 
-## Competitor Feature Analysis (Literature Benchmarks)
+---
 
-| Approach | Typical BA (cross-subject) | Features Used | Our Approach |
-|----------|---------------------------|---------------|--------------|
-| PSD + SVM (traditional) | 65-80% | Band power, asymmetry | Already have; need more subjects |
-| Nonlinear + ML | 70-85% | SampEn, HFD, LZC + SVM/RF | Add SampEn + LZC (P2) |
-| Aperiodic + periodic | ~75% | FOOOF exponent + corrected peaks | Add specparam (P2) |
-| Entropy + microstate + DL | 96-99% (inflated) | Shannon/SampEn + CNN | NOT comparable -- within-subject eval |
-| Multiscale nonlinear | 72-85% | Multi-scale LZC + fusion | Consider for v2 |
-| Cross-subject realistic | 60-75% | Various | Our realistic target range |
+## Literature Benchmarks
 
-**Note:** Many papers report 90%+ but use within-subject splits or CV without subject grouping. Realistic cross-subject BA with proper evaluation is 60-80%.
+| Approach | Reported BA | Features | Notes |
+|----------|-------------|----------|-------|
+| P300 mean amplitude only (current) | 0.670 | 128-dim mean 250-500ms, hcue only | Our baseline |
+| P300 amplitude + latency + area | ~0.70-0.75 estimated | 3 features x key channels | Standard clinical ERP |
+| Multi-condition ERP fusion | 79.84% accuracy | All ERP components, all conditions | ACM 2024 |
+| P300 + N200 combined | ~0.72-0.78 estimated | Both components, frontal/parietal | Multiple MDD ERP studies |
+| Realistic cross-subject ERP | 0.65-0.80 | Varies | With proper LOSO evaluation |
+
+**Key literature findings:**
+- MDD shows reduced P300 amplitude and longer P300 latency vs HC -- HIGH confidence (replicated across multiple studies including iSPOT-D n>1000)
+- Frontal P300 latency is candidate biomarker of MDD -- MEDIUM confidence (Frontiers Human Neuroscience 2022)
+- Auditory P300 latency at C3 and Pz discriminates MDD subtypes -- MEDIUM confidence (Frontiers Psychiatry 2022)
+- MDD shows enhanced P3 to sad cues and reduced P1/P3 to happy cues in dot-probe tasks -- MEDIUM confidence (Frontiers Human Neuroscience 2020)
+- N200 reflects early attentional bias; MDD shows reduced N200 for pleasant stimuli -- LOW confidence (single older study + 2014 replication)
+- Best accuracy 79.84% when all ERP components used as combined feature set -- MEDIUM confidence (ACM 2024)
+
+---
 
 ## Sources
 
-- [Depression Detection and Diagnosis Based on EEG Analysis: A Comprehensive Review (2025)](https://www.mdpi.com/2075-4418/15/2/210/html) -- MEDIUM confidence
-- [Technical and clinical considerations for EEG-based biomarkers for MDD (Nature, 2023)](https://www.nature.com/articles/s44184-023-00038-7) -- HIGH confidence
-- [EEG is better left alone (Delorme, Nature Sci Rep 2023)](https://www.nature.com/articles/s41598-023-27528-0) -- HIGH confidence
-- [Aperiodic and Periodic EEG Components in MDD Classification (2024)](https://www.mdpi.com/1424-8220/24/18/6103) -- MEDIUM confidence
-- [Frontal Alpha Complexity of Depression Patients (2020)](https://www.hindawi.com/journals/jhe/2020/8854725/) -- MEDIUM confidence
-- [Lempel Ziv Complexity of EEG in Depression](https://www.researchgate.net/publication/278659644_Lempel_Ziv_Complexity_of_EEG_in_Depression) -- MEDIUM confidence
-- [EGI-128 bad channel threshold ~15% (ResearchGate)](https://www.researchgate.net/post/How_many_electrodes_can_be_interpolated_in_an_EEG_recording_while_maintaining_integrity_of_the_data) -- MEDIUM confidence
-- [Cross-subject MDD detection via multiscale nonlinear analysis (2025)](https://magazine.ingentium.com/2025/07/15/a-cross-subject-mdd-detection-approach-based-on-multiscale-nonlinear-analysis-in-resting-state-eeg/) -- MEDIUM confidence
-- [Aperiodic activity in OCD and MDD (2025)](https://magazine.ingentium.com/2025/11/19/analysis-of-aperiodic-activity-in-obsessive-compulsive-disorder-and-major-depression/) -- LOW confidence
-- [Opportunities and Challenges for Depression Detection Using EEG and ML (2025)](https://www.mdpi.com/1424-8220/25/2/409) -- MEDIUM confidence
-- [EEG-based MDD recognition by neural oscillation and asymmetry (2024)](https://www.frontiersin.org/articles/10.3389/fnins.2024.1362111/full) -- MEDIUM confidence
-- [EEG machine learning with HFD and SampEn for depression detection](https://www.researchgate.net/publication/323846338_EEG_machine_learning_with_Higuchi_fractal_dimension_and_Sample_Entropy_as_features_for_successful_detection_of_depression) -- MEDIUM confidence
+- [Electrophysiological biomarkers and age in MDD (Frontiers Human Neuroscience, 2022)](https://www.frontiersin.org/journals/human-neuroscience/articles/10.3389/fnhum.2022.1055685/full) -- MEDIUM confidence
+- [P300 ERPs in MDD subtypes (Frontiers Psychiatry, 2022)](https://www.frontiersin.org/articles/10.3389/fpsyt.2022.1021365) -- MEDIUM confidence
+- [Negative Bias in MDD dot-probe ERP (Frontiers Human Neuroscience, 2020)](https://www.frontiersin.org/articles/10.3389/fnhum.2020.593010/full) -- MEDIUM confidence
+- [Decoding Functional Brain Data for Emotion Recognition (ACM, 2024)](https://dl.acm.org/doi/10.1145/3657638) -- MEDIUM confidence
+- [Depressive states and frontal-parietal ERPs during emotional stimuli (Nature Sci Rep, 2023)](https://www.nature.com/articles/s41598-023-44368-0) -- MEDIUM confidence
+- [Emotional Conflict Processing in MDD: N450 and P300 (Frontiers Human Neuroscience, 2018)](https://www.frontiersin.org/articles/10.3389/fnhum.2018.00214/full) -- MEDIUM confidence
+- [N200 component of ERPs in depression (Biological Psychiatry, 1993)](https://www.biologicalpsychiatryjournal.com/article/0006-3223(93)90122-T/fulltext) -- LOW confidence (foundational but old)
+- [P300 latency as indicator of severity in MDD (PMC, 2016)](https://pmc.ncbi.nlm.nih.gov/articles/PMC4866344/) -- MEDIUM confidence
 
 ---
-*Feature research for: EEG MDD vs HC classification (MODMA 128-channel resting-state)*
+*Feature research for: ERP task-state MDD vs HC classification (MODMA dot-probe, 128-channel)*
 *Researched: 2026-02-22*
