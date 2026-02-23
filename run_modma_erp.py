@@ -32,6 +32,28 @@ P300_WIN = (0.25, 0.50)    # P300 time window (sec)
 N200_WIN = (0.10, 0.25)    # N200 time window (sec)
 
 
+def get_parietal_indices(targets=("Pz", "P3", "P4", "Cz", "CPz")):
+    """Return {name: channel_index} for EGI HydroCel-128 montage."""
+    montage = mne.channels.make_standard_montage("GSN-HydroCel-128")
+    name_to_idx = {n: i for i, n in enumerate(montage.ch_names)}
+    result = {}
+    for t in targets:
+        if t in name_to_idx:
+            result[t] = name_to_idx[t]
+            print(f"  {t}: index={result[t]}", flush=True)
+        else:
+            ref = mne.channels.make_standard_montage("standard_1020")
+            ref_pos = dict(zip(ref.ch_names, ref.get_positions()["ch_pos"].values()))
+            gsn_pos = montage.get_positions()["ch_pos"]
+            if t not in ref_pos:
+                raise ValueError(f"{t} not in standard_1020")
+            tp = ref_pos[t]
+            nearest = min(gsn_pos, key=lambda n: np.linalg.norm(gsn_pos[n] - tp))
+            result[t] = name_to_idx[nearest]
+            print(f"  {t} -> nearest GSN: {nearest} (idx={result[t]})", flush=True)
+    return result
+
+
 def load_erp_features():
     """One feature vector per subject: mean P300 amplitude per channel."""
     raw_files = sorted(ERP_DIR.glob("*.raw"))
