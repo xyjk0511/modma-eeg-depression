@@ -12,6 +12,12 @@ This project fixes the QC bottleneck that drops 80% of subjects (11/53 retained)
 - [x] **Phase 4: Statistical Validation** - BA=0.613 (>0.60) but p=0.135 — negative conclusion
 - [x] **Phase 5: Confirmatory Replication** - Pre-register locked pipeline, train on MODMA, test on TDBRAIN → negative (BA=0.500)
 - [x] **Phase 6: Literature-Informed Feature Expansion** - Expand from 5→15 dims based on literature (beta power, PLV connectivity, temporal/central regions), validate internally then cross-dataset
+- [x] **Phase 7: P300 Feature Enrichment + N200** - 丰富单条件（hcue）ERP 特征，验证 BA > 0.670 基线
+- [x] **Phase 8: Permutation Test Statistical Validation** - 验证 hcue 丰富特征结果统计显著（p<0.05）
+- [x] **Phase 9: Multi-Condition Fusion + Contrast Features** - 融合三条件特征，BA > 0.70，p < 0.05
+- [ ] **Phase 10: Electrode Selection** - 识别 EGI 顶叶通道索引，验证 3-dim 和 5-dim 顶叶子集分类器
+- [ ] **Phase 11: Time-Window Analysis** - 逐时间点 t-test 描述性分析 + 50ms bins 消融分类
+- [ ] **Phase 12: Feature Importance** - LR coef_ 反投影到通道空间，输出 128 通道权重排名
 
 ## Phase Details
 
@@ -145,6 +151,45 @@ Plans:
 Plans:
 - [x] 09-01-PLAN.md — 多条件融合 + 对比特征 + 最终 permutation 验证 (fusion BA=0.521 p=0.412, contrast BA=0.521 p=0.384)
 
+### Phase 10: Electrode Selection
+**Goal**: 识别 EGI HydroCel 128 顶叶通道索引，验证顶叶子集分类器不低于 128-dim 基线
+**Depends on**: Phase 9
+**Requirements**: ELEC-01, ELEC-02, ELEC-03
+**Success Criteria** (what must be TRUE):
+  1. Pz/P3/P4/Cz/CPz 的 EGI 通道索引通过坐标匹配验证，打印索引和通道名
+  2. 3-dim 顶叶分类器（Pz/P3/P4）输出 LOSO BA 和 permutation p-value，与 128-dim 基线对比
+  3. 5-dim 扩展分类器（Pz/P3/P4/Cz/CPz）输出 LOSO BA 和 permutation p-value，与 3-dim 对比
+**Plans**: TBD
+
+Plans:
+- [ ] 10-01-PLAN.md — TBD
+
+### Phase 11: Time-Window Analysis
+**Goal**: 通过逐时间点 t-test 和 50ms bins 消融分类，识别 P300 窗口内最具判别力的时间段
+**Depends on**: Phase 10
+**Requirements**: TWIN-01, TWIN-02
+**Success Criteria** (what must be TRUE):
+  1. t-stat vs time 图覆盖 250-500ms，MDD vs HC 组间差异可视化，标注峰值时间点
+  2. 5 个 50ms bins（250-300/300-350/350-400/400-450/450-500ms）各自输出 128-dim LOSO BA
+  3. 消融结果表格打印，最高 BA 的 bin 标注
+**Plans**: TBD
+
+Plans:
+- [ ] 11-01-PLAN.md — TBD
+
+### Phase 12: Feature Importance
+**Goal**: 将 LOSO 各折 LR coef_ 反投影到通道空间，输出可解释的 128 通道权重排名
+**Depends on**: Phase 11
+**Requirements**: FIMP-01
+**Success Criteria** (what must be TRUE):
+  1. 每折 coef_（1x20 PCA 空间）通过 pca.components_.T @ coef_ 反投影为 128-dim 通道权重
+  2. 跨折平均绝对权重排名输出，top-10 通道名打印
+  3. 128 通道权重地形图（topomap）生成并保存
+**Plans**: TBD
+
+Plans:
+- [ ] 12-01-PLAN.md — TBD
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -157,4 +202,7 @@ Plans:
 | 6. Feature Expansion | 2/2 | Complete (negative: BA=0.500) | 2026-02-22 |
 | 7. P300 Feature Enrichment + N200 | 1/1 | Complete (feature enrichment regressed; reverted to 128-dim p300_mean baseline BA=0.670) | 2026-02-23 |
 | 8. Permutation Test Validation | 1/1 | Complete (BA=0.670, p=0.021 — significant) | 2026-02-23 |
-| 9. Multi-Condition Fusion | 1/1 | Complete    | 2026-02-23 |
+| 9. Multi-Condition Fusion | 1/1 | Complete | 2026-02-23 |
+| 10. Electrode Selection | 0/1 | Not started | - |
+| 11. Time-Window Analysis | 0/1 | Not started | - |
+| 12. Feature Importance | 0/1 | Not started | - |

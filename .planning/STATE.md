@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** 深化 ERP 分析（更多成分、电极优化、时间窗口、特征解释），在 hcue P300 显著基线上进一步提升可解释性
-**Current focus:** v3.0 里程碑 — 定义需求中
+**Current focus:** v3.0 里程碑 — Phase 10 Electrode Selection
 
 ## Current Position
 
-Phase: Not started (defining requirements)
-Plan: —
-Status: Defining requirements
-Last activity: 2026-02-23 — Milestone v3.0 started
+Phase: 10 — Electrode Selection
+Plan: 10-01 (TBD)
+Status: Not started
+Last activity: 2026-02-23 — v3.0 roadmap created (phases 10-12)
 
-Progress: [░░░░░░░░░░] 0%
+Progress: [░░░░░░░░░░] 0%  (v3.0: 0/3 phases)
 
 ## v2.0 Final Results
 
@@ -104,4 +104,4 @@ None — all phases complete.
 
 Last session: 2026-02-23
 Stopped at: Completed 09-01-PLAN.md (multi-condition fusion + contrast — ALL PHASES DONE)
-Resume file: N/A — project complete
+Resume file: .planning/ROADMAP.md — start Phase 10
