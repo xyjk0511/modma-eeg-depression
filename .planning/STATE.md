@@ -9,10 +9,10 @@ See: .planning/PROJECT.md (updated 2026-02-22)
 
 ## Current Position
 
-Phase: 9 (complete)
-Plan: —
-Status: ALL PHASES COMPLETE
-Last activity: 2026-02-23 — Phase 7-9 全部完成
+Phase: 8 (complete)
+Plan: 01 (complete)
+Status: Phase 8 complete — permutation test validated
+Last activity: 2026-02-23 — Phase 8-01 hcue permutation test p=0.021
 
 Progress: [██████████] 100%
 
@@ -50,6 +50,7 @@ Progress: [██████████] 100%
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
+- hcue BA=0.670 is statistically significant (p=0.021 < 0.05) — ERP-07/08/09 satisfied
 - Roadmap: 4 phases derived from 12 requirements (QC -> Preprocessing -> Features -> Validation)
 - 01-01: Per-window QC discards any window with >0 channels exceeding 200uV post-interpolation
 - 01-01: Dynamic max_bad_channels (12% of n_channels) overrides CLI value
