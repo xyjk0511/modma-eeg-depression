@@ -38,3 +38,49 @@
 - [x] **REP-02**: External data adapter loads TDBRAIN BDF files, maps 10-20 channels to regions, applies locked preprocessing
 - [x] **REP-03**: Train on full MODMA (43 subjects), test on external dataset with frozen model (no re-tuning)
 - [x] **REP-04**: Complete report with BA, CI, p-value, and conclusion (positive or negative)
+
+---
+
+## v2.0 Requirements — ERP Task-State Classification
+
+**Baseline:** BA=0.670, hcue P300 mean amplitude (128 dims), LOSO, PCA(20), LogisticRegression
+**Target:** BA>0.70, p<0.05 (permutation test, 1000 iterations)
+
+### P300 特征丰富化
+
+- [ ] **ERP-01**: 提取每通道 P300 峰值幅度（250–500ms 窗口内 max）
+- [ ] **ERP-02**: 提取每通道 P300 峰值潜伏期（argmax 对应时间点）
+- [ ] **ERP-03**: 提取每通道 P300 曲线下面积（np.trapezoid）
+- [ ] **ERP-04**: 绘制 grand-average ERP 验证 P300 窗口（250–500ms 内有正偏转）
+
+### N200 成分
+
+- [ ] **ERP-05**: 提取每通道 N200 均值幅度（100–250ms 窗口）
+- [ ] **ERP-06**: 与 P300 特征在同一次文件加载中提取（不重复 epoch）
+
+### 统计显著性验证
+
+- [ ] **ERP-07**: 实现 permutation_test_loso()，subject-level 标签置换（assert len(y)==n_subjects）
+- [ ] **ERP-08**: 1000 次置换，joblib.Parallel，固定 seed=42
+- [ ] **ERP-09**: 先在 hcue 单条件（BA=0.670）上验证置换逻辑正确性
+
+### 多条件融合
+
+- [ ] **ERP-10**: 三条件特征融合（hcue + fcue + scue），显式 sub_id 对齐
+- [ ] **ERP-11**: 条件对比特征 scue − hcue（情绪偏向直接编码）
+- [ ] **ERP-12**: 融合后 n_subjects ≥ 40；若 < 40 则作为消融实验报告
+
+### 非功能性
+
+- [ ] **ERP-NF-01**: 不新增依赖库（MNE 1.11 + NumPy 2.4 + sklearn 1.8 + joblib 1.5 已足够）
+- [ ] **ERP-NF-02**: run_loso() Pipeline 不修改（StandardScaler→PCA(20)→LR）
+- [ ] **ERP-NF-03**: 每次 LOSO 前打印特征矩阵 shape
+
+### 成功标准
+
+| 指标 | 目标 |
+|------|------|
+| hcue 丰富特征 BA | > 0.670 |
+| Permutation p-value | < 0.05 |
+| 融合特征 BA | > 0.70 |
+| 融合 n_subjects | ≥ 40 |

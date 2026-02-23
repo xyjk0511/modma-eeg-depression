@@ -104,6 +104,47 @@ Plans:
 - [x] 06-01-PLAN.md — 15-dim feature expansion + MODMA internal 5-dim vs 15-dim validation
 - [x] 06-02-PLAN.md — Cross-dataset replication on TDBRAIN with 15-dim features → negative (BA=0.500, p=1.0)
 
+### Phase 7: P300 Feature Enrichment + N200
+**Goal**: 丰富单条件（hcue）ERP 特征，验证 BA > 0.670 基线
+**Depends on**: Phase 6 (ERP baseline BA=0.670 已建立)
+**Requirements**: ERP-01, ERP-02, ERP-03, ERP-04, ERP-05, ERP-06
+**Success Criteria** (what must be TRUE):
+  1. load_erp_features() 返回每通道 P300 峰值幅度、潜伏期、曲线下面积 + N200 均值幅度
+  2. grand-average ERP 图确认 250–500ms 内有正偏转（P300）、100–250ms 内有负偏转（N200）
+  3. hcue 单条件 LOSO BA ≥ 0.670（不低于基线）
+  4. 特征矩阵 shape 在 LOSO 前打印
+**Plans**: TBD
+
+Plans:
+- [ ] 07-01-PLAN.md — 扩展 load_erp_features() + grand-average ERP 验证 + hcue LOSO
+
+### Phase 8: Permutation Test Statistical Validation
+**Goal**: 验证 hcue 丰富特征结果统计显著（p<0.05）
+**Depends on**: Phase 7
+**Requirements**: ERP-07, ERP-08, ERP-09, ERP-NF-01, ERP-NF-02
+**Success Criteria** (what must be TRUE):
+  1. permutation_test_loso() 在 subject-level 置换标签（assert len(y)==n_subjects）
+  2. 1000 次置换，joblib.Parallel，seed=42
+  3. hcue 丰富特征 p-value < 0.05
+**Plans**: TBD
+
+Plans:
+- [ ] 08-01-PLAN.md — 实现 permutation_test_loso() + hcue 1000-perm 验证
+
+### Phase 9: Multi-Condition Fusion + Contrast Features
+**Goal**: 融合三条件特征，BA > 0.70，p < 0.05
+**Depends on**: Phase 8
+**Requirements**: ERP-10, ERP-11, ERP-12
+**Success Criteria** (what must be TRUE):
+  1. 三条件融合（hcue+fcue+scue）显式 sub_id 对齐，n_subjects ≥ 40
+  2. scue−hcue 对比特征作为消融实验单独测试
+  3. 融合 LOSO BA > 0.70，permutation p < 0.05
+  4. 若 n_common < 40，作为消融实验报告（不作为主要结论）
+**Plans**: TBD
+
+Plans:
+- [ ] 09-01-PLAN.md — 多条件融合 + 对比特征 + 最终 permutation 验证
+
 ## Progress
 
 | Phase | Plans Complete | Status | Completed |
@@ -114,3 +155,6 @@ Plans:
 | 4. Statistical Validation | 1/1 | Complete (negative) | 2026-02-22 |
 | 5. Confirmatory Replication | 2/2 | Complete (negative: BA=0.500) | 2026-02-22 |
 | 6. Feature Expansion | 2/2 | Complete (negative: BA=0.500) | 2026-02-22 |
+| 7. P300 Feature Enrichment + N200 | 0/1 | Pending | — |
+| 8. Permutation Test Validation | 0/1 | Pending | — |
+| 9. Multi-Condition Fusion | 0/1 | Pending | — |

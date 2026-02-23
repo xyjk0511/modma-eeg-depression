@@ -4,15 +4,15 @@
 
 See: .planning/PROJECT.md (updated 2026-02-22)
 
-**Core value:** Fix QC parameters to retain enough subjects for MDD vs HC classification
-**Current focus:** Phase 6 — Literature-informed feature expansion (5→15 dims)
+**Core value:** ERP 任务态特征（P300/N200）+ 多条件融合，实现统计显著的 MDD vs HC 分类
+**Current focus:** Phase 7 — P300 特征丰富化 + N200 成分提取
 
 ## Current Position
 
-Phase: Not started (defining requirements)
+Phase: 7 (ready to plan)
 Plan: —
-Status: Defining requirements for v2.0 ERP milestone
-Last activity: 2026-02-22 — Milestone v2.0 started (ERP task-state classification)
+Status: Requirements + Roadmap 已定义，等待 /gsd:plan-phase 7
+Last activity: 2026-02-23 — v2.0 里程碑 requirements + roadmap 完成
 
 Progress: [░░░░░░░░░░] 0%
 
