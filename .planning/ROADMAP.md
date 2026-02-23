@@ -159,10 +159,10 @@ Plans:
   1. Pz/P3/P4/Cz/CPz 的 EGI 通道索引通过坐标匹配验证，打印索引和通道名
   2. 3-dim 顶叶分类器（Pz/P3/P4）输出 LOSO BA 和 permutation p-value，与 128-dim 基线对比
   3. 5-dim 扩展分类器（Pz/P3/P4/Cz/CPz）输出 LOSO BA 和 permutation p-value，与 3-dim 对比
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 10-01-PLAN.md — TBD
+- [ ] 10-01-PLAN.md — EGI channel lookup + 3-dim/5-dim parietal subset classifiers
 
 ### Phase 11: Time-Window Analysis
 **Goal**: 通过逐时间点 t-test 和 50ms bins 消融分类，识别 P300 窗口内最具判别力的时间段
