@@ -28,6 +28,7 @@ BASELINE = (-0.1, 0.0)     # baseline correction
 FMIN, FMAX = 0.5, 40.0     # bandpass filter
 N_EEG_CH = 128
 P300_WIN = (0.25, 0.50)    # P300 time window (sec)
+N200_WIN = (0.10, 0.25)    # N200 time window (sec)
 
 
 def load_erp_features():
@@ -74,8 +75,15 @@ def load_erp_features():
             # Average ERP across trials, extract mean amplitude in P300 window
             avg_erp = data.mean(axis=0)                          # (128, n_times)
             p300_mask = (times >= P300_WIN[0]) & (times <= P300_WIN[1])
-            feat = avg_erp[:, p300_mask].mean(axis=1)            # (128,)
-            del data, avg_erp
+            n200_mask = (times >= N200_WIN[0]) & (times <= N200_WIN[1])
+            p300_win  = avg_erp[:, p300_mask]                    # (128, t_p300)
+            p300_mean = p300_win.mean(axis=1)                    # (128,)
+            p300_peak = p300_win.max(axis=1)                     # (128,)
+            p300_lat  = times[p300_mask][p300_win.argmax(axis=1)]  # (128,)
+            p300_auc  = np.trapezoid(p300_win, times[p300_mask], axis=1)  # (128,)
+            n200_mean = avg_erp[:, n200_mask].mean(axis=1)       # (128,)
+            feat = np.concatenate([p300_mean, p300_peak, p300_lat, p300_auc, n200_mean])  # (640,)
+            del data, avg_erp, p300_win
 
             all_feat.append(feat)
             all_labels.append(label)
@@ -86,7 +94,7 @@ def load_erp_features():
             print(f"  Skip {fname}: {e}", flush=True)
             gc.collect()
 
-    X = np.array(all_feat)    # (n_subjects, 128)
+    X = np.array(all_feat)    # (n_subjects, 640)
     y = np.array(all_labels)
     ids = np.array(all_ids)
     n_mdd = sum(y == 1); n_hc = sum(y == 0)
