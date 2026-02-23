@@ -10,9 +10,9 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 10 — Electrode Selection
-Plan: 10-01 (TBD)
-Status: Not started
-Last activity: 2026-02-23 — v3.0 roadmap created (phases 10-12)
+Plan: 10-01 (complete)
+Status: In progress
+Last activity: 2026-02-23 — 10-01 electrode selection complete (5-dim BA=0.634 p=0.045)
 
 Progress: [░░░░░░░░░░] 0%  (v3.0: 0/3 phases)
 
@@ -90,6 +90,8 @@ Recent decisions affecting current work:
 - 06-02: 15-dim L1 cross-dataset BA=0.500, p=1.0 — same as Phase 5 5-dim baseline
 - 06-02: Feature expansion does not improve cross-dataset generalization
 - 06-02: TDBRAIN: 356 subjects (312 MDD, 47 HC), 1780 windows, 15 features
+- [Phase 10]: 10-01: EGI HydroCel-128 uses E1-E128 naming; coordinate-distance fallback maps Pz->E62, P3->E60, P4->E85, Cz/CPz->E55
+- [Phase 10]: 10-01: 5-dim parietal subset (BA=0.634, p=0.045) is significant; 3-dim (BA=0.521, p=0.430) is not
 
 ### Pending Todos
 
@@ -103,5 +105,5 @@ None — all phases complete.
 ## Session Continuity
 
 Last session: 2026-02-23
-Stopped at: Completed 09-01-PLAN.md (multi-condition fusion + contrast — ALL PHASES DONE)
-Resume file: .planning/ROADMAP.md — start Phase 10
+Stopped at: Completed 10-01-PLAN.md (electrode selection — 5-dim BA=0.634 p=0.045)
+Resume file: .planning/ROADMAP.md — continue Phase 10 or start Phase 11

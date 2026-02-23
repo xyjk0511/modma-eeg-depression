@@ -79,9 +79,9 @@
 
 ### 电极选择（ELEC）
 
-- [ ] **ELEC-01**: 识别 EGI HydroCel 128 montage 中 Pz/P3/P4/Cz/CPz 对应的通道索引，验证坐标匹配
-- [ ] **ELEC-02**: 提取顶叶 3-dim 特征（Pz/P3/P4 P300 均值幅度），LOSO BA 与 128-dim 基线对比，permutation p-value
-- [ ] **ELEC-03**: 提取扩展 5-dim 特征（Pz/P3/P4/Cz/CPz），LOSO BA 与 3-dim 对比，permutation p-value
+- [x] **ELEC-01**: 识别 EGI HydroCel 128 montage 中 Pz/P3/P4/Cz/CPz 对应的通道索引，验证坐标匹配
+- [x] **ELEC-02**: 提取顶叶 3-dim 特征（Pz/P3/P4 P300 均值幅度），LOSO BA 与 128-dim 基线对比，permutation p-value
+- [x] **ELEC-03**: 提取扩展 5-dim 特征（Pz/P3/P4/Cz/CPz），LOSO BA 与 3-dim 对比，permutation p-value
 
 ### 时间窗口分析（TWIN）
 
@@ -111,9 +111,9 @@
 
 | Requirement | Phase | Status |
 |-------------|-------|--------|
-| ELEC-01 | Phase 10 | Pending |
-| ELEC-02 | Phase 10 | Pending |
-| ELEC-03 | Phase 10 | Pending |
+| ELEC-01 | Phase 10 | Complete |
+| ELEC-02 | Phase 10 | Complete |
+| ELEC-03 | Phase 10 | Complete |
 | TWIN-01 | Phase 11 | Pending |
 | TWIN-02 | Phase 11 | Pending |
 | FIMP-01 | Phase 12 | Pending |
