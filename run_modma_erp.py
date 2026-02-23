@@ -6,9 +6,10 @@ Reference: Li et al. 2018, CMPB — ERP waveform shape features for MDD classifi
 
 Usage: python run_modma_erp.py
 """
-import os, gc, re, warnings, numpy as np
+import os, gc, re, csv, warnings, numpy as np
 from pathlib import Path
 from joblib import Parallel, delayed
+from scipy.stats import ttest_ind, false_discovery_control
 
 import mne
 from sklearn.model_selection import LeaveOneOut
@@ -30,6 +31,14 @@ FMIN, FMAX = 0.5, 40.0     # bandpass filter
 N_EEG_CH = 128
 P300_WIN = (0.25, 0.50)    # P300 time window (sec)
 N200_WIN = (0.10, 0.25)    # N200 time window (sec)
+
+BINS = [
+    ("250-300ms", 0.250, 0.300),
+    ("300-350ms", 0.300, 0.350),
+    ("350-400ms", 0.350, 0.400),
+    ("400-450ms", 0.400, 0.450),
+    ("450-500ms", 0.450, 0.500),
+]
 
 
 def get_parietal_indices(targets=("Pz", "P3", "P4", "Cz", "CPz")):
@@ -346,6 +355,94 @@ def run_loso(X, y, ids, label=None):
     return ba, auc
 
 
+def plot_ttest_curve(avg_erps, times, y, out_dir):
+    """TWIN-01: per-timepoint t-test curve with FDR correction."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    parietal_idx = list(get_parietal_indices().values())
+    mask_time = (times >= 0.25) & (times <= 0.50)
+    t_times = times[mask_time]
+    erp_par = avg_erps[:, parietal_idx, :][:, :, mask_time].mean(axis=1)  # (N, n_t)
+
+    mdd_mask = y == 1
+    t_stats, p_vals = zip(*[ttest_ind(erp_par[mdd_mask, i], erp_par[~mdd_mask, i],
+                                      equal_var=False) for i in range(erp_par.shape[1])])
+    t_stats = np.array(t_stats)
+    p_vals = np.array(p_vals)
+    adj_p = false_discovery_control(p_vals)
+    sig_mask = adj_p < 0.05
+    peak_t = t_times[np.argmax(np.abs(t_stats))]
+
+    fig, ax = plt.subplots(figsize=(8, 4))
+    bin_colors = ["#e8e8e8", "#d8d8d8", "#e8e8e8", "#d8d8d8", "#e8e8e8"]
+    for (label, t0, t1), col in zip(BINS, bin_colors):
+        ax.axvspan(t0, t1, alpha=0.15, color=col)
+    ax.plot(t_times, t_stats, color="steelblue", lw=1.5)
+    if sig_mask.any():
+        ax.scatter(t_times[sig_mask], t_stats[sig_mask], color="red", s=20, zorder=5,
+                   label=f"FDR sig (n={sig_mask.sum()})")
+    ax.axvline(peak_t, color="orange", lw=1.5, linestyle="--",
+               label=f"Peak |t| @ {peak_t*1000:.0f}ms")
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("t-statistic")
+    ax.set_title("Per-timepoint t-test (MDD vs HC, parietal avg)")
+    ax.legend(fontsize=8)
+    out_path = Path(out_dir) / "ttest_curve.png"
+    fig.savefig(out_path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Peak |t| at {peak_t*1000:.1f}ms  FDR-sig points: {sig_mask.sum()}", flush=True)
+    print(f"  Saved: {out_path}", flush=True)
+
+
+def run_bin_ablation(avg_erps, times, y, out_dir):
+    """TWIN-02: 50ms bin ablation classification."""
+    rows = []
+    best_ba = -1
+    for name, t0, t1 in BINS:
+        if name == BINS[-1][0]:
+            mask = (times >= t0) & (times <= t1)
+        else:
+            mask = (times >= t0) & (times < t1)
+        X_bin = avg_erps[:, :, mask].mean(axis=2)  # (N, 128)
+        ba, p = permutation_test_subset(X_bin, y, n_perm=1000, C=0.1)
+        rows.append((name, ba, p))
+        if ba > best_ba:
+            best_ba = ba
+
+    print(f"\n{'Bin':<12} {'BA':>6} {'p-value':>8} {'Sig':>4} {'Note':>6}", flush=True)
+    print("-" * 42, flush=True)
+    for name, ba, p in rows:
+        sig = "*" if p < 0.05 else ""
+        note = "best" if ba == best_ba else ""
+        print(f"{name:<12} {ba:>6.3f} {p:>8.4f} {sig:>4} {note:>6}", flush=True)
+
+    out_path = Path(out_dir) / "bin_ablation.csv"
+    with open(out_path, "w", newline="") as f:
+        writer = csv.writer(f)
+        writer.writerow(["Bin", "BA", "p-value", "Sig", "Note"])
+        for name, ba, p in rows:
+            sig = "*" if p < 0.05 else ""
+            note = "best" if ba == best_ba else ""
+            writer.writerow([name, f"{ba:.3f}", f"{p:.4f}", sig, note])
+    print(f"  Saved: {out_path}", flush=True)
+
+
+def run_time_window_analysis():
+    print("\n" + "="*50, flush=True)
+    print("Phase 11: Time-Window Analysis", flush=True)
+    print("="*50, flush=True)
+    out_dir = Path("out_phase11")
+    out_dir.mkdir(exist_ok=True)
+    _, avg_erps, times, y, _ = load_erp_timeseries(condition="hcue")
+    print(f"  avg_erps shape: {avg_erps.shape}", flush=True)
+    print("\nTWIN-01: Per-timepoint t-test curve", flush=True)
+    plot_ttest_curve(avg_erps, times, y, out_dir)
+    print("\nTWIN-02: 50ms bin ablation (128-dim, C=0.1)", flush=True)
+    run_bin_ablation(avg_erps, times, y, out_dir)
+
+
 if __name__ == "__main__":
     # Phase 8: hcue single-condition + permutation test
     CONDITION = "hcue"
@@ -377,3 +474,6 @@ if __name__ == "__main__":
     # Phase 10: Electrode Selection (reuse hcue X, y, ids from top of __main__)
     ba_base, p_base = permutation_test_loso(X, y, n_perm=1000)
     run_electrode_selection(X, y, ids, ba_baseline=ba_base, p_baseline=p_base)
+
+    # Phase 11: Time-Window Analysis
+    run_time_window_analysis()
