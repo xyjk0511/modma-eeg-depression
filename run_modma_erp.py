@@ -138,6 +138,67 @@ def fuse_conditions(cond_dicts):
     return X, y, ids
 
 
+def _loso_ba_subset(X, y):
+    """LOSO BA for low-dim subsets; PCA n_components capped at feature count."""
+    nc = min(X.shape[1], len(y) - 1)
+    loo = LeaveOneOut()
+    pipe = Pipeline([
+        ("scaler", StandardScaler()),
+        ("pca",    PCA(n_components=nc)),
+        ("clf",    LogisticRegression(C=1.0, max_iter=2000, class_weight="balanced"))
+    ])
+    preds = []
+    for tr_idx, te_idx in loo.split(X):
+        pipe.fit(X[tr_idx], y[tr_idx])
+        preds.append(int(pipe.predict(X[te_idx])[0]))
+    return balanced_accuracy_score(y, preds)
+
+
+def permutation_test_subset(X, y, n_perm=1000, seed=42):
+    """Permutation test using _loso_ba_subset."""
+    assert len(y) == X.shape[0]
+    rng = np.random.default_rng(seed)
+    obs_ba = _loso_ba_subset(X, y)
+    seeds = rng.integers(0, 2**31, size=n_perm)
+
+    def one_perm(s):
+        return _loso_ba_subset(X, np.random.default_rng(s).permutation(y))
+
+    print(f"Running {n_perm} permutations (n_jobs=4)...", flush=True)
+    perm_bas = Parallel(n_jobs=4)(delayed(one_perm)(s) for s in seeds)
+    perm_arr = np.array(perm_bas)
+    p_val = float((np.sum(perm_arr >= obs_ba) + 1) / (n_perm + 1))
+    print(f"  Observed BA={obs_ba:.3f}  p={p_val:.4f}  "
+          f"(perm mean={np.mean(perm_arr):.3f})", flush=True)
+    return obs_ba, p_val
+
+
+def run_electrode_selection(X, y, ids):
+    """Phase 10: compare 3-dim and 5-dim parietal subsets vs 128-dim baseline."""
+    print("\n" + "="*50)
+    print("Phase 10: Electrode Selection")
+    print("="*50)
+    print("\nEGI HydroCel-128 parietal channel indices:")
+    idx = get_parietal_indices()
+
+    ch3 = ["Pz", "P3", "P4"]
+    X_3 = X[:, [idx[c] for c in ch3]]
+    print(f"\n3-dim {ch3}  shape={X_3.shape}")
+    ba3, p3 = permutation_test_subset(X_3, y, n_perm=1000)
+
+    ch5 = ["Pz", "P3", "P4", "Cz", "CPz"]
+    X_5 = X[:, [idx[c] for c in ch5]]
+    print(f"\n5-dim {ch5}  shape={X_5.shape}")
+    ba5, p5 = permutation_test_subset(X_5, y, n_perm=1000)
+
+    print("\n" + "="*50)
+    print("Electrode Selection Results vs Baseline:")
+    print(f"  128-dim (baseline): BA=0.670  p=0.021")
+    print(f"  3-dim  (Pz/P3/P4): BA={ba3:.3f}  p={p3:.4f}")
+    print(f"  5-dim  (+Cz/CPz):  BA={ba5:.3f}  p={p5:.4f}")
+    print("="*50)
+
+
 def _loso_ba(X, y):
     """Silent LOSO — returns BA only (for permutation loop)."""
     loo = LeaveOneOut()
@@ -240,3 +301,6 @@ if __name__ == "__main__":
     print(f"Contrast matrix: {X_contrast.shape}", flush=True)
     run_loso(X_contrast, y_contrast, ids_contrast, label="contrast(scue-hcue)")
     permutation_test_loso(X_contrast, y_contrast, n_perm=1000)
+
+    # Phase 10: Electrode Selection (reuse hcue X, y, ids from top of __main__)
+    run_electrode_selection(X, y, ids)
