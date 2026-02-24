@@ -16,9 +16,9 @@ This project fixes the QC bottleneck that drops 80% of subjects (11/53 retained)
 - [x] **Phase 8: Permutation Test Statistical Validation** - 验证 hcue 丰富特征结果统计显著（p<0.05）
 - [x] **Phase 9: Multi-Condition Fusion + Contrast Features** - 融合三条件特征，BA > 0.70，p < 0.05
 - [x] **Phase 10: Electrode Selection** - 识别 EGI 顶叶通道索引，验证 3-dim 和 5-dim 顶叶子集分类器 (completed 2026-02-23)
-- [x] **Phase 11: Time-Window Analysis** - 逐时间点 t-test 描述性分析 + 50ms bins 消融分类 (completed 2026-02-23)
+- [x] **Phase 11: Time-Window Analysis** - 逐时间点 t-test 描述性分析 + 50ms bins 消融分类 (completed 2026-02-23)
 - [x] **Phase 12: Feature Importance** - LR coef_ 反投影到通道空间，输出 128 通道权重排名
-- [ ] **Phase 13: Resting-State EEG Classification** - 用MODMA静息态EEG（128通道，5分钟/人）提取频段功率特征，LOSO分类MDD vs HC，与ERP结果对比 (completed 2026-02-23)
+- [ ] **Phase 13: Resting-State EEG Classification** - 用MODMA静息态EEG（128通道，5分钟/人）提取频段功率特征，LOSO分类MDD vs HC，与ERP结果对比 (completed 2026-02-23)
 - [x] **Phase 14: Verification & Requirements Cleanup** - 补齐 Phase 02/05/07/13 的 VERIFICATION.md，修复 10 个过期复选框
 - [ ] **Phase 15: Grand-Average ERP Plot** - 实现 ERP-04：绘制 grand-average ERP 验证 P300 窗口（250–500ms 正偏转）
 - [ ] **Phase 16: Preprocessing Deferred Items** - 实现 PRE-02 (pyprep) 和 ARCH-01 (.npz cache)
@@ -230,10 +230,10 @@ Plans:
   1. grand-average ERP 图覆盖 0–800ms，MDD/HC 分组绘制
   2. 250–500ms 窗口内可见正偏转（P300）
   3. 图保存为 out_phase15/grand_avg_erp.png
-**Plans**: TBD
+**Plans**: 1 plan
 
 Plans:
-- [ ] 15-01-PLAN.md — grand-average ERP plot implementation
+- [ ] 15-01-PLAN.md — plot_grand_average_erp (Fz/Cz/Pz, MDD vs HC, P300 shading) + PNG/PDF output
 
 ### Phase 16: Preprocessing Deferred Items
 **Goal**: 实现之前延期的 pyprep 坏通道检测和 .npz 缓存
