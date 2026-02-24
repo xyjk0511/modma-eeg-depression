@@ -1,45 +1,44 @@
 # MODMA EEG 抑郁症分类
 
-## Current Milestone: v3.0 ERP Deep Analysis
+## What This Is
 
-**Goal:** 在 hcue P300 显著结果（BA=0.670, p=0.022）基础上，深化 ERP 分析：探索更多成分（N200/LPP）、优化电极选择、分析时间窗口贡献、解释特征重要性
+基于 MODMA 128通道 EEG 数据集的 MDD vs HC 二分类研究项目。通过 QC 修复、ERP P300 特征提取、电极选择、时间窗消融和特征重要性分析，实现了统计显著的分类结果。
 
-**Target features:**
-- 更多 ERP 成分：N200（100–250ms）、LPP（500–800ms）均值幅度特征
-- 电极选择优化：从 128 通道中识别贡献最大的电极子集（如顶叶 Pz/P3/P4）
-- 时间窗口分析：对 P300 潜伏期/幅度做组间 t-test，找最具判别力的时间窗口
-- 特征重要性解释：SVM 权重或 permutation importance 解释哪些特征最关键
+## Current State (v1.0 shipped 2026-02-24)
 
-基于 MODMA 数据集的 EEG 脑电特征抑郁症（MDD）vs 健康对照（HC）二分类项目。已有可运行的管线（modma_mdd_real_experiment.py），但当前分类效果在 chance level（BA≈0.54），需要通过数据质量改进来提升可分性。
+**Primary finding:** hcue P300 128-dim BA=0.670, p=0.022（统计显著）
+**Secondary:** 5-dim parietal BA=0.634, p=0.045; 250-300ms bin BA=0.673, p=0.018（探索性）
 
 ## Core Value
 
-通过修复 QC 参数保留足够多的受试者，使分类器有足够样本量来学习 MDD vs HC 的区分模式。
+在 MODMA 52人 EEG 数据集上，hcue P300 均值幅度是唯一统计显著的 MDD 分类特征。临床应用价值受限于中等性能与缺少同范式外部验证。
 
 ## Requirements
 
 ### Validated
 
-- ✓ 128通道 EEG 数据加载和预处理管线 — existing
-- ✓ PSD/FAA/连接性/Riemannian 特征提取（v4, 144维）— existing
-- ✓ SVM/RF/GBM 分类器 + GridSearchCV — existing
-- ✓ Permutation test 统计检验 — existing
-- ✓ QC 报告生成 — existing
-- ✓ 42 个单元测试，覆盖率 >80% — existing
+- ✓ QC-01..04: 动态坏通道阈值 + 插值 + 受试者保留 43人 — v1.0
+- ✓ PRE-01..02: 1.0Hz 高通 + pyprep PREP 标准检测 — v1.0
+- ✓ FEAT-01: Theta/Beta 比率特征 — v1.0
+- ✓ ARCH-01..02: .npz 缓存 + permutation 单次提取 — v1.0
+- ✓ VAL-01..03: BA>0.60, p<0.05, 组间保留差<20% — v1.0
+- ✓ REP-01..04: TDBRAIN 跨数据集复制（结论：负结果）— v1.0
+- ✓ ERP-01..12: P300/N200 特征 + 置换检验 + 多条件融合 — v1.0
+- ✓ ELEC-01..03: EGI 通道映射 + 3/5-dim 顶叶子集 — v1.0
+- ✓ TWIN-01..02: t-test 曲线 + 50ms bin 消融 — v1.0
+- ✓ FIMP-01: LR coef_ PCA 反投影通道权重 — v1.0
 
 ### Active
 
-- [ ] 提取 N200（100–250ms）和 LPP（500–800ms）成分均值幅度特征
-- [ ] 从 128 通道中识别贡献最大的电极子集（顶叶/枕叶区域）
-- [ ] 对 P300 时间窗口做组间 t-test，找最具判别力的时间段
-- [ ] 用 SVM 权重或 permutation importance 解释特征重要性
-- [ ] 验证新特征组合 BA ≥ 0.670，p < 0.05
+(None — next milestone TBD)
 
 ### Out of Scope
 
-- 3通道数据集 — 实验证明特征空间太有限，BA≈0.50
-- 深度学习方法 — 样本量不足以支撑
-- 实时分类系统 — 当前是离线研究
+- 多条件融合（384-dim）— Phase 9 实证 BA 0.670→0.521
+- 640-dim 丰富特征 — Phase 7 实证 BA 0.670→0.554
+- 深度学习 — N=52 样本量不足
+- 跨数据集复现 — Phase 5/6 已完成，静息态结论为负
+- ERP 跨数据集验证 — 缺少同范式外部数据集
 
 ## Context
 
