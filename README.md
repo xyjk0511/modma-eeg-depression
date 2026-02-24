@@ -1,3 +1,5 @@
+[中文版](README_zh.md) | **English**
+
 # MODMA EEG Depression Classification
 
 MDD vs HC binary classification using 128-channel ERP data from the MODMA dataset. Statistically significant results achieved through QC repair, P300 feature extraction, electrode selection, time-window ablation, and feature importance analysis.
