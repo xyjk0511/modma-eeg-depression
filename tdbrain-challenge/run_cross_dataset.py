@@ -115,12 +115,9 @@ def extract_modma_features():
 
 def _train_and_eval(X_train, y_train_str, X_test, y_test_str, k=50):
     """Train SVM on TDBrain, evaluate on MODMA. Returns metrics dict."""
-    y_test_mapped = np.where(np.array(y_test_str) == "MDD", "MDD", "nonMDD")
-
-    le = LabelEncoder()
-    y_tr = le.fit_transform(y_train_str)
-    y_te = le.transform(y_test_mapped)
-    mdd_idx = list(le.classes_).index("MDD")
+    # Explicit binary encoding: MDD=1, nonMDD/HC=0
+    y_tr = np.where(np.array(y_train_str) == "MDD", 1, 0)
+    y_te = np.where(np.array(y_test_str) == "MDD", 1, 0)
 
     pipe = ImbPipeline([
         ("scaler", StandardScaler()),
@@ -130,7 +127,7 @@ def _train_and_eval(X_train, y_train_str, X_test, y_test_str, k=50):
                     class_weight="balanced", random_state=RS)),
     ])
     pipe.fit(X_train, y_tr)
-    proba = pipe.predict_proba(X_test)[:, mdd_idx]
+    proba = pipe.predict_proba(X_test)[:, 1]  # P(MDD)
     pred = pipe.predict(X_test)
 
     auc = roc_auc_score(y_te, proba)
