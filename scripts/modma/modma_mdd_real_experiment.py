@@ -774,6 +774,8 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
 
 def _run_with_adaptive_threshold(args, use_pyprep):
     """Run pipeline with adaptive threshold relaxation to retain >= 35 subjects."""
+    n_retained = 0
+    report = None
     for threshold in [0.20, 0.25, 0.30]:
         logger.info(f"Trying max_bad_pct={threshold} (use_pyprep={use_pyprep})")
         report = run_main_with_output_dir(
@@ -781,7 +783,7 @@ def _run_with_adaptive_threshold(args, use_pyprep):
             output_dir=args.output_dir,
             max_subjects=args.max_subjects,
             resample_sfreq=args.resample_sfreq,
-            n_permutations=0,  # skip permutations for threshold search
+            n_permutations=0,
             seed=args.seed,
             min_windows_per_subject=args.min_windows_per_subject,
             window_sec=args.window_sec,
@@ -793,17 +795,10 @@ def _run_with_adaptive_threshold(args, use_pyprep):
             use_pyprep=use_pyprep,
             max_bad_pct=threshold,
         )
-        # Count retained subjects from the CV results
-        n_subjects = len(report.get("conclusion", {}).get("values", {}).get("min_subjects_per_class", 0) and
-                         report.get("conclusion", {}).get("values", {}))
-        # Read qc_report to count retained subjects
-        import pandas as _pd
         qc_path = os.path.join(args.output_dir, "qc_report.csv")
         if os.path.exists(qc_path):
-            qc = _pd.read_csv(qc_path)
+            qc = pd.read_csv(qc_path)
             n_retained = len(qc[qc["drop_reason"] == "kept"])
-        else:
-            n_retained = 0
         logger.info(f"  Threshold {threshold}: {n_retained} subjects retained")
         if n_retained >= 35:
             return report, threshold, n_retained
