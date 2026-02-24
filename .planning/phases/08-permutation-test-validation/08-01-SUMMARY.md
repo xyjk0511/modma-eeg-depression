@@ -35,7 +35,7 @@ hcue P300 128-dim LOSO classification confirmed statistically significant: BA=0.
 | AUC | 0.670 |
 | Permutations | 1000 |
 | Perm mean BA | 0.494 |
-| p-value | 0.0210 |
+| p-value | 0.0220 |
 | Conclusion | Statistically significant (p < 0.05) |
 
 ## Interpretation

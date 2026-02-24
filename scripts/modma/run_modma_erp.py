@@ -330,7 +330,7 @@ def run_electrode_selection(X, y, ids, ba_baseline=None, p_baseline=None):
     ba5, p5 = permutation_test_subset(X_5, y, n_perm=1000)
 
     ba_b = ba_baseline if ba_baseline is not None else 0.670
-    p_b  = p_baseline  if p_baseline  is not None else 0.021
+    p_b  = p_baseline  if p_baseline  is not None else 0.022
     print("\n" + "="*50)
     print("Electrode Selection Results vs Baseline:")
     print(f"  128-dim (baseline): BA={ba_b:.3f}  p={p_b:.4f}")

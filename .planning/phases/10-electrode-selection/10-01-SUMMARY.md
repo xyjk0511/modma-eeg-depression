@@ -31,7 +31,7 @@ Identified EGI HydroCel-128 parietal channel indices via coordinate-distance fal
 
 | Model | Dims | BA | p-value | Significant |
 |-------|------|----|---------|-------------|
-| 128-dim baseline | 128 | 0.670 | 0.021 | Yes |
+| 128-dim baseline | 128 | 0.670 | 0.022 | Yes |
 | 3-dim (Pz/P3/P4) | 3 | 0.521 | 0.430 | No |
 | 5-dim (+Cz/CPz) | 5 | 0.634 | 0.045 | Yes |
 
