@@ -51,7 +51,7 @@
 - [x] **ERP-01**: 提取每通道 P300 峰值幅度（250–500ms 窗口内 max）
 - [x] **ERP-02**: 提取每通道 P300 峰值潜伏期（argmax 对应时间点）
 - [x] **ERP-03**: 提取每通道 P300 曲线下面积（np.trapezoid）
-- [ ] **ERP-04**: 绘制 grand-average ERP 验证 P300 窗口（250–500ms 内有正偏转）
+- [x] **ERP-04**: 绘制 grand-average ERP 验证 P300 窗口（250–500ms 内有正偏转）
 
 ### N200 成分
 
@@ -115,7 +115,7 @@
 | ERP-01 | Phase 7 | Complete |
 | ERP-02 | Phase 7 | Complete |
 | ERP-03 | Phase 7 | Complete |
-| ERP-04 | Phase 15 | Pending |
+| ERP-04 | Phase 15 | Complete |
 | ERP-05 | Phase 7 | Complete |
 | ERP-06 | Phase 7 | Complete |
 | ERP-07 | Phase 8 | Complete |

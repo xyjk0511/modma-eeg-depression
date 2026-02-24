@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** 深化 ERP 分析（更多成分、电极优化、时间窗口、特征解释），在 hcue P300 显著基线上进一步提升可解释性
-**Current focus:** Gap closure — Phase 14 Verification & Requirements Cleanup
+**Current focus:** Gap closure — Phase 15 Grand-Average ERP Plot
 
 ## Current Position
 
-Phase: 14 — Verification & Requirements Cleanup
-Plan: 14-01 (complete)
+Phase: 15 — Grand-Average ERP Plot
+Plan: 15-01 (complete)
 Status: Complete
-Last activity: 2026-02-23 — 14-01 verification cleanup complete (4 VERIFICATION.md + 10 checkboxes fixed)
+Last activity: 2026-02-24 — 15-01 grand-average ERP plot complete (Fz/Cz/Pz, MDD vs HC, P300 shading)
 
-Progress: [████████████] 100%  (gap closure: 1/3 phases)
+Progress: [████████████████] 100%  (gap closure: 2/3 phases)
 
 ## v2.0 Final Results
 
@@ -102,9 +102,11 @@ Recent decisions affecting current work:
 - [Phase 14]: 14-01: Phase 02 status=passed (npz cache, pyprep deferred); Phase 05/07/13 status=negative
 - [Phase 14]: 14-01: Traceability maps requirements to original implementing phase, not Phase 14
 
+- [Phase 15]: 15-01: Fz->E5, Cz->E55, Pz->E62 via coordinate-distance fallback; plot covers -100ms to 500ms (full epoch)
+
 ### Pending Todos
 
-Phase 15 (ERP-04) and Phase 16 (PRE-02, ARCH-01) remain.
+Phase 16 (PRE-02, ARCH-01) remains.
 
 ### Blockers/Concerns
 
@@ -113,6 +115,6 @@ Phase 15 (ERP-04) and Phase 16 (PRE-02, ARCH-01) remain.
 
 ## Session Continuity
 
-Last session: 2026-02-23
-Stopped at: Completed 14-01-PLAN.md (verification cleanup — 4 VERIFICATION.md + 10 checkboxes fixed)
-Resume file: .planning/ROADMAP.md — Phase 14 complete, Phase 15 next
+Last session: 2026-02-24
+Stopped at: Completed 15-01-PLAN.md (grand-average ERP plot — Fz/Cz/Pz, MDD vs HC, P300 shading)
+Resume file: .planning/ROADMAP.md — Phase 15 complete, Phase 16 next
