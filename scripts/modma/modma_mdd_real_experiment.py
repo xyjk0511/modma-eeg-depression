@@ -20,6 +20,7 @@ from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.metrics import roc_auc_score, f1_score, balanced_accuracy_score, confusion_matrix, roc_curve
 import time
 from joblib import Parallel, delayed
+from pyprep import NoisyChannels
 
 logger = logging.getLogger(__name__)
 
@@ -76,18 +77,20 @@ def build_region_indices(ch_names):
     return region_indices
 
 
-_CACHE_VERSION = "2"  # bump when preprocessing logic changes
+_CACHE_VERSION = "3"  # bump when preprocessing logic changes
 
 
 def _compute_cache_key(participants_df, bids_root, window_sec, resample_sfreq,
-                       crop_duration, highpass_freq, bad_amp_uv):
+                       crop_duration, highpass_freq, bad_amp_uv,
+                       use_pyprep=True, max_bad_pct=0.20):
     """SHA-256 of params + id→group mapping + per-EDF mtime → 16-char hex key."""
     h = hashlib.sha256()
     h.update(_CACHE_VERSION.encode())
     id_group = sorted(zip(participants_df["participant_id"],
                           participants_df["group"]))
     h.update(json.dumps(id_group).encode())
-    for v in (window_sec, resample_sfreq, crop_duration, highpass_freq, bad_amp_uv):
+    for v in (window_sec, resample_sfreq, crop_duration, highpass_freq, bad_amp_uv,
+              use_pyprep, max_bad_pct):
         h.update(str(v).encode())
     for sid, _ in id_group:
         safe_id = os.path.basename(sid)
@@ -115,6 +118,12 @@ def parse_args(argv=None):
     parser.add_argument("--highpass-freq", type=float, default=1.0, help="High-pass filter frequency in Hz")
     parser.add_argument("--n-jobs", type=int, default=4, help="Parallel jobs for permutation test")
     parser.add_argument("--no-cache", action="store_true", help="Disable .npz window cache")
+    parser.add_argument("--use-pyprep", action=argparse.BooleanOptionalAction, default=True,
+                        help="Use pyprep NoisyChannels for bad channel detection")
+    parser.add_argument("--max-bad-pct", type=float, default=0.20,
+                        help="Max fraction of bad channels before subject exclusion")
+    parser.add_argument("--ab-compare", action="store_true",
+                        help="Run A/B comparison: pyprep vs amplitude detection")
 
     return parser.parse_args(argv)
 
@@ -188,11 +197,12 @@ def generate_qc_report(participants_df, groups, keep_mask, no_edf_subjects, min_
     return df, retention_stats
 
 
-def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_duration=60.0, highpass_freq=1.0, bad_amp_uv=200.0, cache_dir=None):
+def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_duration=60.0, highpass_freq=1.0, bad_amp_uv=200.0, cache_dir=None, use_pyprep=True, max_bad_pct=0.20):
     # --- cache hit ---
     if cache_dir:
         key = _compute_cache_key(participants_df, bids_root, window_sec,
-                                 resample_sfreq, crop_duration, highpass_freq, bad_amp_uv)
+                                 resample_sfreq, crop_duration, highpass_freq, bad_amp_uv,
+                                 use_pyprep=use_pyprep, max_bad_pct=max_bad_pct)
         cache_path = os.path.join(cache_dir, f"{key}.npz")
         if os.path.exists(cache_path):
             try:
@@ -250,17 +260,40 @@ def load_windows(participants_df, bids_root, window_sec, resample_sfreq, crop_du
                 warnings.filterwarnings('ignore', category=RuntimeWarning)
                 raw.filter(l_freq=highpass_freq, h_freq=45.0, verbose=False)
 
-                # Detect bad channels on Raw data
-                data_raw = raw.get_data()
-                bad_mask = np.any(np.abs(data_raw) > thr_v, axis=1)
-                bad_chs = [raw.ch_names[i] for i in range(len(raw.ch_names)) if bad_mask[i]]
+                # Detect bad channels
+                n_ch = len(raw.ch_names)
+                if use_pyprep:
+                    nc = NoisyChannels(raw, do_detrend=False, random_state=42)
+                    nc.find_all_bads(ransac=True, channel_wise=False)
+                    bad_chs = nc.get_bads()
+                    method = "pyprep"
+                else:
+                    data_raw = raw.get_data()
+                    bad_mask = np.any(np.abs(data_raw) > thr_v, axis=1)
+                    bad_chs = [raw.ch_names[i] for i in range(n_ch) if bad_mask[i]]
+                    method = "amplitude"
 
-                # Interpolate if <=25% bad
+                n_bad = len(bad_chs)
+                logger.info(f"  {sub_id}: {n_bad}/{n_ch} bad channels ({method}) {bad_chs}")
+
                 n_interpolated = 0
-                if 0 < len(bad_chs) <= int(len(raw.ch_names) * 0.25):
-                    raw.info['bads'] = bad_chs
-                    raw.interpolate_bads(reset_bads=True, verbose=False)
-                    n_interpolated = len(bad_chs)
+                if use_pyprep:
+                    # pyprep path: exclude if > max_bad_pct
+                    max_bad = int(n_ch * max_bad_pct)
+                    if n_bad > max_bad:
+                        logger.info(f"  {sub_id}: EXCLUDED ({n_bad} > {max_bad})")
+                        no_edf_subjects.append((sub_id, group_label))
+                        continue
+                    if bad_chs:
+                        raw.info['bads'] = bad_chs
+                        raw.interpolate_bads(reset_bads=True, verbose=False)
+                        n_interpolated = n_bad
+                else:
+                    # amplitude path: interpolate if <=25% bad (original behavior)
+                    if 0 < n_bad <= int(n_ch * 0.25):
+                        raw.info['bads'] = bad_chs
+                        raw.interpolate_bads(reset_bads=True, verbose=False)
+                        n_interpolated = n_bad
                 interp_info[sub_id] = n_interpolated
 
                 # Average reference AFTER interpolation
@@ -605,7 +638,7 @@ def determine_conclusion(report, subject_labels):
     }
 
 
-def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq, n_permutations, seed, min_windows_per_subject, window_sec, crop_duration, bad_amp_uv=200.0, highpass_freq=1.0, n_jobs=4, use_cache=True):
+def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq, n_permutations, seed, min_windows_per_subject, window_sec, crop_duration, bad_amp_uv=200.0, highpass_freq=1.0, n_jobs=4, use_cache=True, use_pyprep=True, max_bad_pct=0.20):
     os.makedirs(output_dir, exist_ok=True)
     participants_path = os.path.join(bids_root, "participants.tsv")
 
@@ -629,6 +662,8 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
         highpass_freq=highpass_freq,
         bad_amp_uv=bad_amp_uv,
         cache_dir=cache_dir,
+        use_pyprep=use_pyprep,
+        max_bad_pct=max_bad_pct,
     )
 
     if X_windows.ndim != 3 or len(X_windows) == 0:
@@ -736,16 +771,17 @@ def run_main_with_output_dir(bids_root, output_dir, max_subjects, resample_sfreq
     
     return report
 
-if __name__ == "__main__":
-    args = parse_args()
-    logging.basicConfig(level=logging.INFO, format='%(message)s')
-    try:
-        run_main_with_output_dir(
+
+def _run_with_adaptive_threshold(args, use_pyprep):
+    """Run pipeline with adaptive threshold relaxation to retain >= 35 subjects."""
+    for threshold in [0.20, 0.25, 0.30]:
+        logger.info(f"Trying max_bad_pct={threshold} (use_pyprep={use_pyprep})")
+        report = run_main_with_output_dir(
             bids_root=args.bids_root,
             output_dir=args.output_dir,
             max_subjects=args.max_subjects,
             resample_sfreq=args.resample_sfreq,
-            n_permutations=args.n_permutations,
+            n_permutations=0,  # skip permutations for threshold search
             seed=args.seed,
             min_windows_per_subject=args.min_windows_per_subject,
             window_sec=args.window_sec,
@@ -753,8 +789,96 @@ if __name__ == "__main__":
             bad_amp_uv=args.bad_amp_uv,
             highpass_freq=args.highpass_freq,
             n_jobs=args.n_jobs,
-            use_cache=not args.no_cache,
+            use_cache=False,
+            use_pyprep=use_pyprep,
+            max_bad_pct=threshold,
         )
+        # Count retained subjects from the CV results
+        n_subjects = len(report.get("conclusion", {}).get("values", {}).get("min_subjects_per_class", 0) and
+                         report.get("conclusion", {}).get("values", {}))
+        # Read qc_report to count retained subjects
+        import pandas as _pd
+        qc_path = os.path.join(args.output_dir, "qc_report.csv")
+        if os.path.exists(qc_path):
+            qc = _pd.read_csv(qc_path)
+            n_retained = len(qc[qc["drop_reason"] == "kept"])
+        else:
+            n_retained = 0
+        logger.info(f"  Threshold {threshold}: {n_retained} subjects retained")
+        if n_retained >= 35:
+            return report, threshold, n_retained
+    return report, 0.30, n_retained
+
+
+def run_ab_comparison(args):
+    """Run A/B comparison: pyprep vs amplitude detection."""
+    results = {}
+    for method, use_pp in [("pyprep", True), ("amplitude", False)]:
+        logger.info(f"\n{'='*60}\nRunning {method} detection\n{'='*60}")
+        report, threshold, n_retained = _run_with_adaptive_threshold(args, use_pp)
+        ba = report.get("balanced_accuracy", 0)
+        auc = report.get("roc_auc", 0)
+        retention = report.get("group_retention", {})
+        results[method] = {
+            "BA": ba, "AUC": auc,
+            "n_subjects": n_retained,
+            "n_mdd": round(retention.get("mdd_rate", 0) * n_retained),
+            "n_hc": round(retention.get("hc_rate", 0) * n_retained),
+            "threshold_used": threshold,
+        }
+
+    # Print comparison table
+    logger.info(f"\n{'='*60}\nA/B Comparison: pyprep vs amplitude\n{'='*60}")
+    logger.info(f"{'Metric':<20} {'pyprep':>10} {'amplitude':>10}")
+    logger.info("-" * 42)
+    for key in ["BA", "AUC", "n_subjects", "n_mdd", "n_hc", "threshold_used"]:
+        v1 = results["pyprep"].get(key, "N/A")
+        v2 = results["amplitude"].get(key, "N/A")
+        fmt = f".3f" if isinstance(v1, float) else ""
+        logger.info(f"{key:<20} {v1:>10{fmt}} {v2:>10{fmt}}")
+
+    # Regression gate (resting-state baseline BA=0.613)
+    pyprep_ba = results["pyprep"]["BA"]
+    if pyprep_ba >= 0.613:
+        logger.info("\nRegression gate: PASSED (pyprep BA >= 0.613)")
+    elif 0.580 <= pyprep_ba < 0.613:
+        logger.info("\nRegression gate: CONDITIONAL (0.580 <= BA < 0.613, check retention)")
+    else:
+        logger.info(f"\nRegression gate: FAILED (pyprep BA={pyprep_ba:.3f} < 0.580)")
+        logger.info("Recommendation: use --no-use-pyprep")
+
+    # Save JSON
+    os.makedirs(args.output_dir, exist_ok=True)
+    out_path = os.path.join(args.output_dir, "pyprep_ab_comparison.json")
+    with open(out_path, "w", newline='\n') as f:
+        json.dump(results, f, indent=2)
+    logger.info(f"\nSaved: {out_path}")
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    logging.basicConfig(level=logging.INFO, format='%(message)s')
+    try:
+        if args.ab_compare:
+            run_ab_comparison(args)
+        else:
+            run_main_with_output_dir(
+                bids_root=args.bids_root,
+                output_dir=args.output_dir,
+                max_subjects=args.max_subjects,
+                resample_sfreq=args.resample_sfreq,
+                n_permutations=args.n_permutations,
+                seed=args.seed,
+                min_windows_per_subject=args.min_windows_per_subject,
+                window_sec=args.window_sec,
+                crop_duration=args.crop_duration,
+                bad_amp_uv=args.bad_amp_uv,
+                highpass_freq=args.highpass_freq,
+                n_jobs=args.n_jobs,
+                use_cache=not args.no_cache,
+                use_pyprep=args.use_pyprep,
+                max_bad_pct=args.max_bad_pct,
+            )
     except (ValueError, FileNotFoundError) as e:
         logger.error(f"Error: {e}")
         raise SystemExit(1)
