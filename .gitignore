@@ -2,14 +2,22 @@ __pycache__/
 *.pyc
 *.log
 .pytest_cache/
+.coverage
 data/
 outputs/
-
-# Temporary/debug files
+results/
 err*.txt
 _tmp_*
 tmp_*/
-.coverage
-
-# Editor
 .vscode/
+.planning/
+tdbrain/
+tdbrain-challenge/
+TD_BRAIN_code/
+scripts/tdbrain/
+scripts/misc/
+docs/*.pdf
+docs/*.docx
+docs/*.xlsx
+docs/plans/
+tests/test_run_tdbrain_v9.py
