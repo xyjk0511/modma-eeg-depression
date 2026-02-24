@@ -20,11 +20,11 @@ Progress: [████████████████] 100%  (gap closure:
 
 | 实验 | N | BA | AUC | p-value | 结论 |
 |------|---|-----|-----|---------|------|
-| hcue 单条件 (128-dim) | 52 | 0.670 | 0.670 | 0.021 | ✓ 显著 |
+| hcue 单条件 (128-dim) | 52 | 0.670 | 0.670 | 0.022 | ✓ 显著 |
 | 三条件融合 (384-dim) | 51 | 0.521 | 0.508 | 0.411 | ✗ 负结果 |
 | 对比 scue−hcue (128-dim) | 52 | 0.521 | 0.438 | 0.383 | ✗ 负结果 |
 
-**结论：** hcue P300 均值幅度（128-dim）是最强信号，BA=0.670, p=0.021（统计显著）。
+**结论：** hcue P300 均值幅度（128-dim）是最强信号，BA=0.670, p=0.022（统计显著）。
 多条件融合引入噪声，性能下降至接近随机水平。
 
 ## Performance Metrics
@@ -51,7 +51,7 @@ Progress: [████████████████] 100%  (gap closure:
 Decisions are logged in PROJECT.md Key Decisions table.
 Recent decisions affecting current work:
 
-- hcue BA=0.670 is statistically significant (p=0.021 < 0.05) — ERP-07/08/09 satisfied
+- hcue BA=0.670 is statistically significant (p=0.022 < 0.05) — ERP-07/08/09 satisfied
 - 09-01: Fusion (n=51) BA=0.521 p=0.412 — negative; hcue single-condition is optimal
 - 09-01: Contrast scue-hcue (n=52) BA=0.521 p=0.384 — negative ablation
 - 09-01: n_common=51 >= 40 threshold; ERP-10/11/12 satisfied

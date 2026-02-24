@@ -1024,7 +1024,7 @@ def run_resting_analysis():
     n = len(y)
     pipe = Pipeline([
         ("scaler", StandardScaler()),
-        ("pca",    PCA(n_components=min(20, n - 1))),
+        ("pca",    PCA(n_components=min(20, n - 1), svd_solver="full", random_state=42)),
         ("clf",    LogisticRegression(C=1.0, class_weight="balanced", max_iter=1000)),
     ])
     loo = LeaveOneOut()

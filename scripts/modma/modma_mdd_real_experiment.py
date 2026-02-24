@@ -193,7 +193,8 @@ def generate_qc_report(participants_df, groups, keep_mask, no_edf_subjects, min_
     balance_diff = abs(mdd_rate - hc_rate)
     logger.info(f"Group retention - MDD: {mdd_rate:.0%}, HC: {hc_rate:.0%}, diff: {balance_diff:.0%}")
 
-    retention_stats = {"mdd_rate": mdd_rate, "hc_rate": hc_rate, "diff": balance_diff}
+    retention_stats = {"mdd_rate": mdd_rate, "hc_rate": hc_rate, "diff": balance_diff,
+                       "n_mdd": n_mdd_kept, "n_hc": n_hc_kept}
     return df, retention_stats
 
 
@@ -817,8 +818,8 @@ def run_ab_comparison(args):
         results[method] = {
             "BA": ba, "AUC": auc,
             "n_subjects": n_retained,
-            "n_mdd": round(retention.get("mdd_rate", 0) * n_retained),
-            "n_hc": round(retention.get("hc_rate", 0) * n_retained),
+            "n_mdd": retention.get("n_mdd", 0),
+            "n_hc": retention.get("n_hc", 0),
             "threshold_used": threshold,
         }
 
