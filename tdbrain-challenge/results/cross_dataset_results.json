@@ -1,0 +1,42 @@
+{
+  "approach_a": {
+    "EO": {
+      "auc": 0.4945,
+      "balanced_accuracy": 0.5,
+      "sensitivity": 1.0,
+      "specificity": 0.0,
+      "n_train": 1141,
+      "n_test": 47,
+      "n_features_in": 496
+    },
+    "EC": {
+      "auc": 0.4725,
+      "balanced_accuracy": 0.4808,
+      "sensitivity": 0.9615,
+      "specificity": 0.0,
+      "n_train": 1150,
+      "n_test": 47,
+      "n_features_in": 496
+    }
+  },
+  "approach_b": {
+    "EO": {
+      "auc": 0.5769,
+      "balanced_accuracy": 0.5,
+      "sensitivity": 0.0,
+      "specificity": 1.0,
+      "n_train": 1141,
+      "n_test": 47,
+      "n_features_in": 27
+    },
+    "EC": {
+      "auc": 0.4817,
+      "balanced_accuracy": 0.5,
+      "sensitivity": 0.0,
+      "specificity": 1.0,
+      "n_train": 1150,
+      "n_test": 47,
+      "n_features_in": 27
+    }
+  }
+}
