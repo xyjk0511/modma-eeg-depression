@@ -267,5 +267,5 @@ Plans:
 | 12. Feature Importance | 1/1 | Complete    | 2026-02-23 |
 | 13. Resting-State EEG Classification | 0/1 | Pending | - |
 | 14. Verification & Requirements Cleanup | 1/1 | Complete    | 2026-02-23 |
-| 15. Grand-Average ERP Plot | 1/1 | Complete | 2026-02-24 |
+| 15. Grand-Average ERP Plot | 1/1 | Complete    | 2026-02-24 |
 | 16. Preprocessing Deferred Items | 0/1 | Pending | - |
