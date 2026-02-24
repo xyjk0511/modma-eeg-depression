@@ -8,7 +8,7 @@ Reference: Li et al. 2018, CMPB — ERP waveform shape features for MDD classifi
 
 Usage: python run_modma_erp.py
 """
-import os, gc, re, csv, warnings, numpy as np
+import os, gc, re, csv, hashlib, warnings, numpy as np
 import pandas as pd
 from pathlib import Path
 from joblib import Parallel, delayed
@@ -45,6 +45,28 @@ BINS = [
     ("450-500ms", 0.450, 0.500),
 ]
 
+# ── ERP Cache ────────────────────────────────────────────────────
+_ERP_CACHE_VERSION = "1"
+ERP_CACHE_DIR = ROOT / "data/modma/cache"
+_NO_CACHE = False
+
+
+def set_erp_cache(enabled):
+    global _NO_CACHE
+    _NO_CACHE = not enabled
+
+
+def _erp_cache_path(condition, func_name, raw_files):
+    """SHA-256 of version + params + sorted file mtimes -> 16-char hex."""
+    h = hashlib.sha256()
+    for v in (_ERP_CACHE_VERSION, condition, func_name,
+              str(FMIN), str(FMAX), str(TMIN), str(TMAX),
+              str(P300_WIN), str(N200_WIN)):
+        h.update(v.encode())
+    for f in sorted(raw_files, key=lambda p: p.name):
+        h.update(str(f.stat().st_mtime).encode())
+    return ERP_CACHE_DIR / f"{h.hexdigest()[:16]}.npz"
+
 
 def get_parietal_indices(targets=("Pz", "P3", "P4", "Cz", "CPz")):
     """Return {name: channel_index} for EGI HydroCel-128 montage."""
@@ -72,6 +94,14 @@ def load_erp_features():
     """One feature vector per subject: mean P300 amplitude per channel."""
     raw_files = sorted(ERP_DIR.glob("*.raw"))
     print(f"Found {len(raw_files)} .raw files", flush=True)
+
+    if not _NO_CACHE and raw_files:
+        cp = _erp_cache_path(CONDITION, "load_erp_features", raw_files)
+        if cp.exists():
+            d = np.load(cp, allow_pickle=True)
+            print(f"Cache hit: {cp.name}", flush=True)
+            return d["X"], d["y"], d["ids"]
+        print("Cache miss", flush=True)
 
     all_feat, all_labels, all_ids = [], [], []
 
@@ -132,6 +162,13 @@ def load_erp_features():
     ids = np.array(all_ids)
     n_mdd = sum(y == 1); n_hc = sum(y == 0)
     print(f"\nTotal: {len(y)} subjects (MDD={n_mdd}, HC={n_hc})", flush=True)
+
+    if not _NO_CACHE and raw_files:
+        os.makedirs(ERP_CACHE_DIR, exist_ok=True)
+        cp = _erp_cache_path(CONDITION, "load_erp_features", raw_files)
+        np.savez(cp, X=X, y=y, ids=ids)
+        print(f"Cache saved: {cp.name}", flush=True)
+
     return X, y, ids
 
 
@@ -140,6 +177,15 @@ def load_erp_timeseries(condition="hcue"):
     global CONDITION
     CONDITION = condition
     raw_files = sorted(ERP_DIR.glob("*.raw"))
+
+    if not _NO_CACHE and raw_files:
+        cp = _erp_cache_path(condition, "load_erp_timeseries", raw_files)
+        if cp.exists():
+            d = np.load(cp, allow_pickle=True)
+            print(f"Cache hit: {cp.name}", flush=True)
+            return d["feat"], d["erps"], d["times"], d["labels"], d["ids"]
+        print("Cache miss", flush=True)
+
     all_feat, all_erps, all_labels, all_ids = [], [], [], []
     times_ref = None
 
@@ -193,8 +239,16 @@ def load_erp_timeseries(condition="hcue"):
             print(f"  Skip {fname}: {e}", flush=True)
             gc.collect()
 
-    return (np.array(all_feat), np.array(all_erps),
-            times_ref, np.array(all_labels), np.array(all_ids))
+    feat, erps = np.array(all_feat), np.array(all_erps)
+    labels, ids = np.array(all_labels), np.array(all_ids)
+
+    if not _NO_CACHE and raw_files:
+        os.makedirs(ERP_CACHE_DIR, exist_ok=True)
+        cp = _erp_cache_path(condition, "load_erp_timeseries", raw_files)
+        np.savez(cp, feat=feat, erps=erps, times=times_ref, labels=labels, ids=ids)
+        print(f"Cache saved: {cp.name}", flush=True)
+
+    return feat, erps, times_ref, labels, ids
 
 
 def load_erp_features_dict(condition):
@@ -993,5 +1047,8 @@ def run_resting_analysis():
 
 
 if __name__ == "__main__":
+    import sys
+    if "--no-cache" in sys.argv:
+        set_erp_cache(False)
     # Phase 15: Grand-Average ERP Plot
     plot_grand_average_erp(ROOT / "outputs" / "out_phase15")
