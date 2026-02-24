@@ -21,7 +21,7 @@ This project fixes the QC bottleneck that drops 80% of subjects (11/53 retained)
 - [ ] **Phase 13: Resting-State EEG Classification** - 用MODMA静息态EEG（128通道，5分钟/人）提取频段功率特征，LOSO分类MDD vs HC，与ERP结果对比 (completed 2026-02-23)
 - [x] **Phase 14: Verification & Requirements Cleanup** - 补齐 Phase 02/05/07/13 的 VERIFICATION.md，修复 10 个过期复选框
 - [x] **Phase 15: Grand-Average ERP Plot** - 实现 ERP-04：绘制 grand-average ERP 验证 P300 窗口（250–500ms 正偏转）
-- [ ] **Phase 16: Preprocessing Deferred Items** - 实现 PRE-02 (pyprep) 和 ARCH-01 (.npz cache)
+- [x] **Phase 16: Preprocessing Deferred Items** - 实现 PRE-02 (pyprep) 和 ARCH-01 (.npz cache)
 
 ## Phase Details
 
@@ -248,7 +248,7 @@ Plans:
 
 Plans:
 - [x] 16-01-PLAN.md — pyprep NoisyChannels integration + adaptive threshold + A/B comparison
-- [ ] 16-02-PLAN.md — ERP .npz caching + resting-state cache version bump
+- [x] 16-02-PLAN.md — ERP .npz caching + resting-state cache version bump
 
 ## Progress
 
@@ -269,4 +269,4 @@ Plans:
 | 13. Resting-State EEG Classification | 0/1 | Pending | - |
 | 14. Verification & Requirements Cleanup | 1/1 | Complete    | 2026-02-23 |
 | 15. Grand-Average ERP Plot | 1/1 | Complete    | 2026-02-24 |
-| 16. Preprocessing Deferred Items | 1/2 | In Progress | - |
+| 16. Preprocessing Deferred Items | 2/2 | Complete | 2026-02-24 |

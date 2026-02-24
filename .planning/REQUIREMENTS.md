@@ -23,7 +23,7 @@
 
 ### 架构优化
 
-- [ ] **ARCH-01**: EDF 加载后缓存为 .npz，后续迭代 <1s
+- [x] **ARCH-01**: EDF 加载后缓存为 .npz，后续迭代 <1s
 - [x] **ARCH-02**: Permutation test 中特征只提取一次，不重复 1000 次
 
 ### 验证
@@ -128,7 +128,7 @@
 | TWIN-02 | Phase 11 | Complete |
 | FIMP-01 | Phase 12 | Complete |
 | PRE-02 | Phase 16 | Complete |
-| ARCH-01 | Phase 16 | Pending |
+| ARCH-01 | Phase 16 | Complete |
 
 **Coverage:**
 - v1-v3 gap closure requirements: 18 total

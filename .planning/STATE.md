@@ -10,11 +10,11 @@ See: .planning/PROJECT.md (updated 2026-02-23)
 ## Current Position
 
 Phase: 16 — Preprocessing Deferred Items
-Plan: 16-01 (complete)
-Status: In Progress
-Last activity: 2026-02-24 — 16-01 pyprep NoisyChannels integration complete (adaptive threshold, A/B comparison)
+Plan: 16-02 (complete) — 2/2 plans done
+Status: Complete
+Last activity: 2026-02-24 — 16-02 ERP .npz caching complete (ARCH-01 closed)
 
-Progress: [████████████████] 100%  (gap closure: 2/3 phases + 16-01)
+Progress: [████████████████] 100%  (gap closure: 3/3 phases complete)
 
 ## v2.0 Final Results
 
@@ -30,9 +30,9 @@ Progress: [████████████████] 100%  (gap closure:
 ## Performance Metrics
 
 **Velocity:**
-- Total plans completed: 9
-- Average duration: 5.1 min
-- Total execution time: 0.68 hours
+- Total plans completed: 10
+- Average duration: 4.9 min
+- Total execution time: 0.75 hours
 
 **By Phase:**
 
@@ -42,6 +42,7 @@ Progress: [████████████████] 100%  (gap closure:
 | 3-Feature Opt | 2/2 | 10 min | 5 min |
 | 5-Replication | 2/2 | 6 min | 3 min |
 | 6-Feature Expansion | 2/2 | 8 min | 4 min |
+| 16-Preprocessing Deferred | 2/2 | 13 min | 6.5 min |
 
 ## Accumulated Context
 
@@ -109,9 +110,12 @@ Recent decisions affecting current work:
 - [Phase 16]: 16-01: Adaptive threshold 20%/25%/30% ensures >= 35 subjects retained
 - [Phase 16]: 16-01: Regression gate uses resting-state BA=0.613 baseline, not ERP BA=0.670
 
+- [Phase 16]: 16-02: ERP .npz cache via SHA-256 hash key (version + params + file mtimes); --no-cache bypasses
+- [Phase 16]: 16-02: Task 2 no-op — _CACHE_VERSION already "3" and cache key already includes use_pyprep/max_bad_pct from 16-01
+
 ### Pending Todos
 
-Phase 16 Plan 02 (ARCH-01) remains.
+Phase 16 complete (2/2 plans). All gap closure phases done.
 
 ### Blockers/Concerns
 
@@ -121,5 +125,5 @@ Phase 16 Plan 02 (ARCH-01) remains.
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 16-01-PLAN.md (pyprep NoisyChannels integration + adaptive threshold + A/B comparison)
-Resume file: .planning/ROADMAP.md — Phase 16 Plan 01 complete, Plan 02 next
+Stopped at: Completed 16-02-PLAN.md (ERP .npz caching, ARCH-01 closed, Phase 16 complete)
+Resume file: .planning/ROADMAP.md — Phase 16 complete (2/2 plans)
