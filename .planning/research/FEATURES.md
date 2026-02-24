@@ -8,7 +8,7 @@
 
 | Feature | Status | Result |
 |---------|--------|--------|
-| hcue P300 mean amplitude per channel (128-dim, 250-500ms) | BUILT | BA=0.670, p=0.021 significant baseline |
+| hcue P300 mean amplitude per channel (128-dim, 250-500ms) | BUILT | BA=0.670, p=0.022 significant baseline |
 | P300 peak amplitude + latency + AUC + N200 mean (640-dim) | BUILT, REVERTED | BA=0.554 regressed vs baseline |
 | Multi-condition fusion hcue+fcue+scue (384-dim) | BUILT | BA=0.521, p=0.412 degraded |
 | Contrast scue-hcue (128-dim) | BUILT | BA=0.521, p=0.384 degraded |

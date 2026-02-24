@@ -14,7 +14,7 @@ key_files:
   created: [.planning/phases/08-permutation-test-validation/08-01-SUMMARY.md]
   modified: []
 decisions:
-  - "hcue BA=0.670 is statistically significant (p=0.021 < 0.05) — ERP-07/08/09 satisfied"
+  - "hcue BA=0.670 is statistically significant (p=0.022 < 0.05) — ERP-07/08/09 satisfied"
 metrics:
   duration: "~8 min"
   completed: "2026-02-23"
@@ -22,7 +22,7 @@ metrics:
 
 # Phase 08 Plan 01: Permutation Test Validation Summary
 
-hcue P300 128-dim LOSO classification confirmed statistically significant: BA=0.670, p=0.021 via 1000-iteration subject-level permutation test.
+hcue P300 128-dim LOSO classification confirmed statistically significant: BA=0.670, p=0.022 via 1000-iteration subject-level permutation test.
 
 ## Result
 
@@ -40,7 +40,7 @@ hcue P300 128-dim LOSO classification confirmed statistically significant: BA=0.
 
 ## Interpretation
 
-hcue P300 mean amplitude achieves BA=0.670 with p=0.021, meeting the p<0.05 threshold and satisfying requirements ERP-07, ERP-08, ERP-09, ERP-NF-01, ERP-NF-02.
+hcue P300 mean amplitude achieves BA=0.670 with p=0.022, meeting the p<0.05 threshold and satisfying requirements ERP-07, ERP-08, ERP-09, ERP-NF-01, ERP-NF-02.
 
 ## Artifacts
 

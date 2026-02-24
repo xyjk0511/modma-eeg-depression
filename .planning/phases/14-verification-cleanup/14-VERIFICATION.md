@@ -52,7 +52,7 @@ score: 3/3 must-haves verified
 | ERP-06 | N200 extracted in same file load | SATISFIED | [x] in REQUIREMENTS.md; Complete (Phase 7) |
 | ERP-07 | permutation_test_loso() with subject-level assert | SATISFIED | [x] in REQUIREMENTS.md; Complete (Phase 8) |
 | ERP-08 | 1000 perms, joblib, seed=42 | SATISFIED | [x] in REQUIREMENTS.md; Complete (Phase 8) |
-| ERP-09 | Validated on hcue, p=0.021 | SATISFIED | [x] in REQUIREMENTS.md; Complete (Phase 8) |
+| ERP-09 | Validated on hcue, p=0.022 | SATISFIED | [x] in REQUIREMENTS.md; Complete (Phase 8) |
 | FIMP-01 | LR coef_ back-projection implemented | SATISFIED | [x] in REQUIREMENTS.md; Complete (Phase 12) |
 
 ### Anti-Patterns Found

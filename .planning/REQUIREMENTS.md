@@ -74,7 +74,7 @@
 
 ## v3.0 Requirements — ERP Deep Analysis
 
-**Baseline:** BA=0.670, p=0.021 (hcue P300 mean amplitude, 128-dim, LOSO)
+**Baseline:** BA=0.670, p=0.022 (hcue P300 mean amplitude, 128-dim, LOSO)
 **Goal:** 电极降维 + 科学解释，提升结果可解释性
 
 ### 电极选择（ELEC）

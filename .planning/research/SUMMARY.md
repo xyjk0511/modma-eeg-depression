@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-This is a scientific EEG/ERP analysis pipeline built on a validated v2.0 baseline (BA=0.670, p=0.021 on hcue P300 mean amplitude, 128-dim, LOSO). The v3.0 milestone is not about improving classification accuracy through more features — v2.0 proved that adding features (640-dim Phase 7, 384-dim Phase 9) consistently degrades performance due to the curse of dimensionality at N=52. The v3.0 goal is dimensionality reduction via electrode selection and scientific interpretation of what drives the existing BA=0.670 result.
+This is a scientific EEG/ERP analysis pipeline built on a validated v2.0 baseline (BA=0.670, p=0.022 on hcue P300 mean amplitude, 128-dim, LOSO). The v3.0 milestone is not about improving classification accuracy through more features — v2.0 proved that adding features (640-dim Phase 7, 384-dim Phase 9) consistently degrades performance due to the curse of dimensionality at N=52. The v3.0 goal is dimensionality reduction via electrode selection and scientific interpretation of what drives the existing BA=0.670 result.
 
 The recommended approach is a strict build order dictated by data dependencies: (1) extend `load_erp_features()` with LPP window and verify BA does not regress, (2) add time-window t-test as standalone descriptive analysis, (3) add electrode selection to reduce 128 channels to a parietal ROI (Pz/P3/P4), (4) add feature importance via SVM weights back-projected through PCA. All new analysis branches feed into the unchanged `run_loso()` and `permutation_test_loso()` functions — these are locked and must not be modified. Zero new library installs are required.
 
@@ -133,7 +133,7 @@ Phases with standard patterns (skip research-phase):
 ### Primary (HIGH confidence)
 - `run_modma_erp.py` — direct code analysis; current pipeline structure
 - `.planning/phases/07-p300-feature-enrichment-n200/07-01-SUMMARY.md` — 640-dim regression BA=0.554
-- `.planning/phases/08-permutation-test-validation/08-01-SUMMARY.md` — BA=0.670, p=0.021 baseline
+- `.planning/phases/08-permutation-test-validation/08-01-SUMMARY.md` — BA=0.670, p=0.022 baseline
 - `.planning/phases/09-multi-condition-fusion-contrast-features/09-VERIFICATION.md` — fusion BA=0.521
 - Brookshire et al., Frontiers in Neuroscience 2024 — data leakage in translational EEG
 - Bioinformatics 2010 — permutation importance as corrected feature importance measure

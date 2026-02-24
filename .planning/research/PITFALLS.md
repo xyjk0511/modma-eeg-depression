@@ -185,7 +185,7 @@ Peak latency (argmax) is a single-sample measurement with high variance at N=52.
 ### Pitfall 11: Multi-Condition Fusion Degrades Performance (Confirmed Phase 9)
 
 **What goes wrong:**
-Phase 9: 384-dim fusion BA=0.521, p=0.412 — worse than hcue alone (BA=0.670, p=0.021).
+Phase 9: 384-dim fusion BA=0.521, p=0.412 — worse than hcue alone (BA=0.670, p=0.022).
 Adding conditions introduces noise that overwhelms the hcue signal.
 
 **How to avoid:**
@@ -264,7 +264,7 @@ Adding conditions introduces noise that overwhelms the hcue signal.
 ## Sources
 
 - Phase 7 empirical result: 640-dim regressed BA 0.670 to 0.554 — .planning/phases/07-p300-feature-enrichment-n200/07-01-SUMMARY.md. HIGH confidence.
-- Phase 8 empirical result: 128-dim P300 mean BA=0.670, p=0.021 — .planning/phases/08-permutation-test-validation/08-01-SUMMARY.md. HIGH confidence.
+- Phase 8 empirical result: 128-dim P300 mean BA=0.670, p=0.022 — .planning/phases/08-permutation-test-validation/08-01-SUMMARY.md. HIGH confidence.
 - Phase 9 empirical result: 384-dim fusion BA=0.521, p=0.412 — .planning/phases/09-multi-condition-fusion-contrast-features/09-VERIFICATION.md. HIGH confidence.
 - Brookshire et al., Frontiers in Neuroscience 2024 — data leakage in translational EEG. HIGH confidence.
 - Saarschmidt et al., Scientific Reports 2021 — inflated accuracy from feature selection leakage. HIGH confidence.

@@ -19,7 +19,7 @@ run_modma_erp.py
 ```
 
 Validated results:
-- hcue single-condition: BA=0.670, p=0.021 (primary finding)
+- hcue single-condition: BA=0.670, p=0.022 (primary finding)
 - 3-condition fusion: BA=0.521, p=0.412 (negative)
 - scue-hcue contrast: BA=0.521, p=0.384 (negative)
 
@@ -87,7 +87,7 @@ Four new analysis directions, all building on the existing `run_modma_erp.py` ar
 | Element | Why |
 |---------|-----|
 | `run_loso()` | Locked since phase 7. PCA inside pipeline prevents leakage. |
-| `permutation_test_loso()` | Validated at p=0.021. No changes needed. |
+| `permutation_test_loso()` | Validated at p=0.022. No changes needed. |
 | Config: TMIN, TMAX, BASELINE, FMIN, FMAX | Validated preprocessing parameters. |
 | Epoch rejection: `eeg=150e-6`, min 10 trials | Validated QC thresholds. |
 
@@ -256,7 +256,7 @@ Dependencies dictate this sequence:
 ### Anti-Pattern 4: Modifying run_loso() or permutation_test_loso()
 
 **What people do:** Adjust the pipeline or permutation logic to accommodate new features.
-**Why it's wrong:** These functions are validated and locked. Changes risk invalidating the p=0.021 baseline.
+**Why it's wrong:** These functions are validated and locked. Changes risk invalidating the p=0.022 baseline.
 **Do this instead:** Pass different X matrices to the unchanged functions. All variation is in feature extraction.
 
 ## Sources

@@ -65,7 +65,7 @@ None — no stubs, TODOs, placeholders, or empty implementations found in run_mo
 
 ### Gaps Summary
 
-Implementation is complete and correct. All three ERP requirements (ERP-10, ERP-11, ERP-12) are satisfied at the code level. The single gap is a scientific negative result: fusion BA=0.521 p=0.412 does not meet BA>0.70 p<0.05. Adding fcue and scue introduces noise that degrades performance from hcue baseline (BA=0.670, p=0.021). This is not a fixable code defect — the phase goal was a scientific hypothesis the data did not support.
+Implementation is complete and correct. All three ERP requirements (ERP-10, ERP-11, ERP-12) are satisfied at the code level. The single gap is a scientific negative result: fusion BA=0.521 p=0.412 does not meet BA>0.70 p<0.05. Adding fcue and scue introduces noise that degrades performance from hcue baseline (BA=0.670, p=0.022). This is not a fixable code defect — the phase goal was a scientific hypothesis the data did not support.
 
 ---
 

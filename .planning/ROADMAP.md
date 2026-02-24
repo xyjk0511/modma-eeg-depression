@@ -139,7 +139,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [x] 08-01-PLAN.md — Run hcue 1000-perm permutation test, record p-value (BA=0.670, p=0.021)
+- [x] 08-01-PLAN.md — Run hcue 1000-perm permutation test, record p-value (BA=0.670, p=0.022)
 
 ### Phase 9: Multi-Condition Fusion + Contrast Features
 **Goal**: 融合三条件特征，BA > 0.70，p < 0.05
@@ -205,7 +205,7 @@ Plans:
 **Plans**: 1 plan
 
 Plans:
-- [ ] 13-01-PLAN.md — load_resting_features + LOSO + 与ERP对比
+- [x] 13-01-PLAN.md — load_resting_features + LOSO + 与ERP对比
 
 ### Phase 14: Verification & Requirements Cleanup
 **Goal**: 补齐缺失的 VERIFICATION.md，修复过期复选框，确保审计通过
@@ -261,7 +261,7 @@ Plans:
 | 5. Confirmatory Replication | 2/2 | Complete (negative: BA=0.500) | 2026-02-22 |
 | 6. Feature Expansion | 2/2 | Complete (negative: BA=0.500) | 2026-02-22 |
 | 7. P300 Feature Enrichment + N200 | 1/1 | Complete (feature enrichment regressed; reverted to 128-dim p300_mean baseline BA=0.670) | 2026-02-23 |
-| 8. Permutation Test Validation | 1/1 | Complete (BA=0.670, p=0.021 — significant) | 2026-02-23 |
+| 8. Permutation Test Validation | 1/1 | Complete (BA=0.670, p=0.022 — significant) | 2026-02-23 |
 | 9. Multi-Condition Fusion | 1/1 | Complete | 2026-02-23 |
 | 10. Electrode Selection | 1/1 | Complete    | 2026-02-23 |
 | 11. Time-Window Analysis | 1/1 | Complete    | 2026-02-23 |

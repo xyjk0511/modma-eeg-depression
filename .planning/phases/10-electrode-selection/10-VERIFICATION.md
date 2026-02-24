@@ -21,7 +21,7 @@ score: 4/4 must-haves verified
 | 1 | Pz/P3/P4/Cz/CPz EGI channel indices printed with name and index | VERIFIED | get_parietal_indices() line 35: make_standard_montage(GSN-HydroCel-128) + coordinate-distance fallback; prints name/index for each target |
 | 2 | 3-dim classifier (Pz/P3/P4) outputs LOSO BA and permutation p-value | VERIFIED | run_electrode_selection() lines 184-187: X_3 = X[:, [idx[c] for c in ch3]], permutation_test_subset(X_3, y, n_perm=1000) |
 | 3 | 5-dim classifier (Pz/P3/P4/Cz/CPz) outputs LOSO BA and permutation p-value | VERIFIED | Lines 189-192: same pattern for ch5; SUMMARY records BA=0.634 p=0.045 |
-| 4 | Comparison table: 128-dim baseline vs 3-dim vs 5-dim printed | VERIFIED | Lines 194-199: prints fixed baseline BA=0.670 p=0.021 alongside computed ba3/p3 and ba5/p5 |
+| 4 | Comparison table: 128-dim baseline vs 3-dim vs 5-dim printed | VERIFIED | Lines 194-199: prints fixed baseline BA=0.670 p=0.022 alongside computed ba3/p3 and ba5/p5 |
 
 **Score:** 4/4 truths verified
 

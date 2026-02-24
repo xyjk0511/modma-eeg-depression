@@ -27,7 +27,7 @@ metrics:
 
 # Phase 9 Plan 01: Multi-Condition Fusion and Contrast Summary
 
-One-liner: Three-condition fusion (hcue+fcue+scue, 384-dim) and scue-hcue contrast both yield BA=0.521 (p>0.38), confirming hcue single-condition (BA=0.670, p=0.021) as the sole significant finding.
+One-liner: Three-condition fusion (hcue+fcue+scue, 384-dim) and scue-hcue contrast both yield BA=0.521 (p>0.38), confirming hcue single-condition (BA=0.670, p=0.022) as the sole significant finding.
 
 ## Results
 
@@ -43,7 +43,7 @@ n_common = 51 (>= 40 threshold). Fusion result is classified as a primary result
 
 ## Conclusion
 
-Three-condition fusion did not achieve BA > 0.70 or p < 0.05; adding fcue and scue features introduces noise that degrades performance from BA=0.670 to BA=0.521. The hcue single-condition P300 mean amplitude (128-dim, BA=0.670, p=0.021) remains the primary finding.
+Three-condition fusion did not achieve BA > 0.70 or p < 0.05; adding fcue and scue features introduces noise that degrades performance from BA=0.670 to BA=0.521. The hcue single-condition P300 mean amplitude (128-dim, BA=0.670, p=0.022) remains the primary finding.
 
 ## Deviations from Plan
 
