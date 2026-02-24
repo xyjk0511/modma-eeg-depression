@@ -1,3 +1,5 @@
+import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _root import ROOT
 """
 MODMA 数据集抑郁症检测 (真实数据验证版)
 直接读取 BIDS 格式的真实 EDF 脑电文件
@@ -21,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 BIDS_ROOT: str = os.environ.get(
     "MODMA_BIDS_ROOT",
-    r"d:\eeg\MODMA_EEG_BIDS_format\EEG_LZU_2015_2_resting state",
+    str(ROOT / "data/modma_bids/EEG_LZU_2015_2_resting state"),
 )
 WINDOW_SEC: int = 10
 RESAMPLE_SFREQ: float = 125.0

@@ -1,3 +1,5 @@
+import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _root import ROOT
 """MODMA ERP (Dot-probe hcue) subject-level classification.
 
 P300 features: mean amplitude in 250-500ms window per channel, computed from
@@ -24,7 +26,7 @@ warnings.filterwarnings("ignore", category=RuntimeWarning)
 mne.set_log_level("ERROR")
 
 # ── Config ──────────────────────────────────────────────────────
-ERP_DIR = Path("854301_EEG_128Channels_ERP_Lanzhou_2015/EEG_128channels_ERP_lanzhou_2015")
+ERP_DIR = ROOT / "data/modma_erp/EEG_128channels_ERP_lanzhou_2015"
 CONDITION = "hcue"          # overridden in __main__ loop
 TMIN, TMAX = -0.1, 0.5     # epoch window (sec)
 BASELINE = (-0.1, 0.0)     # baseline correction
@@ -32,7 +34,7 @@ FMIN, FMAX = 0.5, 40.0     # bandpass filter
 N_EEG_CH = 128
 P300_WIN = (0.25, 0.50)    # P300 time window (sec)
 N200_WIN = (0.10, 0.25)    # N200 time window (sec)
-RESTING_DIR = Path("854301_EEG_128Channels_Resting_Lanzhou_2015/EEG_128channels_resting_lanzhou_2015")
+RESTING_DIR = ROOT / "data/modma_resting/EEG_128channels_resting_lanzhou_2015"
 BANDS = {"delta":(1,4),"theta":(4,8),"alpha":(8,13),"beta":(13,30),"gamma":(30,45)}
 
 BINS = [
@@ -436,8 +438,8 @@ def run_time_window_analysis():
     print("\n" + "="*50, flush=True)
     print("Phase 11: Time-Window Analysis", flush=True)
     print("="*50, flush=True)
-    out_dir = Path("out_phase11")
-    out_dir.mkdir(exist_ok=True)
+    out_dir = ROOT / "outputs/out_phase11"
+    out_dir.mkdir(exist_ok=True, parents=True)
     _, avg_erps, times, y, _ = load_erp_timeseries(condition="hcue")
     print(f"  avg_erps shape: {avg_erps.shape}", flush=True)
     print("\nTWIN-01: Per-timepoint t-test curve", flush=True)
@@ -469,8 +471,8 @@ def run_feature_importance():
     print("Phase 12: Feature Importance", flush=True)
     print("="*50, flush=True)
 
-    out_dir = Path("out_phase12")
-    out_dir.mkdir(exist_ok=True)
+    out_dir = ROOT / "outputs/out_phase12"
+    out_dir.mkdir(exist_ok=True, parents=True)
 
     # Load hcue full-window features
     global CONDITION
@@ -917,7 +919,7 @@ def run_resting_analysis():
     print("\n" + "="*50)
     print("Phase 13: Resting-State EEG Classification")
     print("="*50)
-    out_dir = Path("out_phase13"); out_dir.mkdir(exist_ok=True)
+    out_dir = ROOT / "outputs/out_phase13"; out_dir.mkdir(exist_ok=True, parents=True)
     X, y, _ = load_resting_features()
     n = len(y)
     pipe = Pipeline([

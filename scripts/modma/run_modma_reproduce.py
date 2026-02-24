@@ -1,3 +1,5 @@
+import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _root import ROOT
 """Reproduce 3 literature methods on MODMA with strict subject-level CV.
 
 Methods:
@@ -27,7 +29,7 @@ from modma_mdd_real_experiment import (
 
 logger = logging.getLogger(__name__)
 
-BIDS_ROOT = "MODMA_EEG_BIDS_format/EEG_LZU_2015_2_resting state"
+BIDS_ROOT = str(ROOT / "data/modma_bids/EEG_LZU_2015_2_resting state")
 SFREQ = 125.0
 BANDS = [(4, 8), (8, 13), (13, 30)]
 REGIONS = ["frontal", "central", "temporal", "parietal"]
@@ -267,7 +269,7 @@ def permutation_test(method_fn, X, y, groups, n_splits, seed, observed_ba, n_per
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--bids-root", default=BIDS_ROOT)
-    parser.add_argument("--output-dir", default="results_modma_reproduce")
+    parser.add_argument("--output-dir", default=str(ROOT / "outputs/results_modma_reproduce"))
     parser.add_argument("--n-permutations", type=int, default=200)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
