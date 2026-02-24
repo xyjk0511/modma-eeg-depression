@@ -15,7 +15,7 @@
 ### 预处理升级
 
 - [x] **PRE-01**: 高通滤波从 0.5Hz 提升到 1.0Hz
-- [ ] **PRE-02**: 集成 pyprep 进行 PREP 标准坏通道检测（替代纯振幅阈值）
+- [x] **PRE-02**: 集成 pyprep 进行 PREP 标准坏通道检测（替代纯振幅阈值）
 
 ### 特征工程
 
@@ -127,7 +127,7 @@
 | TWIN-01 | Phase 11 | Complete |
 | TWIN-02 | Phase 11 | Complete |
 | FIMP-01 | Phase 12 | Complete |
-| PRE-02 | Phase 16 | Pending |
+| PRE-02 | Phase 16 | Complete |
 | ARCH-01 | Phase 16 | Pending |
 
 **Coverage:**

@@ -5,16 +5,16 @@
 See: .planning/PROJECT.md (updated 2026-02-23)
 
 **Core value:** 深化 ERP 分析（更多成分、电极优化、时间窗口、特征解释），在 hcue P300 显著基线上进一步提升可解释性
-**Current focus:** Gap closure — Phase 15 Grand-Average ERP Plot
+**Current focus:** Gap closure — Phase 16 Preprocessing Deferred Items
 
 ## Current Position
 
-Phase: 15 — Grand-Average ERP Plot
-Plan: 15-01 (complete)
-Status: Complete
-Last activity: 2026-02-24 — 15-01 grand-average ERP plot complete (Fz/Cz/Pz, MDD vs HC, P300 shading)
+Phase: 16 — Preprocessing Deferred Items
+Plan: 16-01 (complete)
+Status: In Progress
+Last activity: 2026-02-24 — 16-01 pyprep NoisyChannels integration complete (adaptive threshold, A/B comparison)
 
-Progress: [████████████████] 100%  (gap closure: 2/3 phases)
+Progress: [████████████████] 100%  (gap closure: 2/3 phases + 16-01)
 
 ## v2.0 Final Results
 
@@ -104,17 +104,22 @@ Recent decisions affecting current work:
 
 - [Phase 15]: 15-01: Fz->E5, Cz->E55, Pz->E62 via coordinate-distance fallback; plot covers -100ms to 500ms (full epoch)
 
+- [Phase 16]: 16-01: pyprep NoisyChannels with do_detrend=False replaces amplitude-only detection in load_windows()
+- [Phase 16]: 16-01: Amplitude fallback preserves original 25% interpolation-only behavior (no exclusion)
+- [Phase 16]: 16-01: Adaptive threshold 20%/25%/30% ensures >= 35 subjects retained
+- [Phase 16]: 16-01: Regression gate uses resting-state BA=0.613 baseline, not ERP BA=0.670
+
 ### Pending Todos
 
-Phase 16 (PRE-02, ARCH-01) remains.
+Phase 16 Plan 02 (ARCH-01) remains.
 
 ### Blockers/Concerns
 
-- Research flag: pyprep RANSAC requires highpass BEFORE detection (MODMA EDF DC offset)
+- Research flag: pyprep RANSAC requires highpass BEFORE detection (MODMA EDF DC offset) — RESOLVED in 16-01
 - Research flag: ICLabel on EGI-128 montage needs empirical validation on 2-3 subjects
 
 ## Session Continuity
 
 Last session: 2026-02-24
-Stopped at: Completed 15-01-PLAN.md (grand-average ERP plot — Fz/Cz/Pz, MDD vs HC, P300 shading)
-Resume file: .planning/ROADMAP.md — Phase 15 complete, Phase 16 next
+Stopped at: Completed 16-01-PLAN.md (pyprep NoisyChannels integration + adaptive threshold + A/B comparison)
+Resume file: .planning/ROADMAP.md — Phase 16 Plan 01 complete, Plan 02 next

@@ -247,7 +247,7 @@ Plans:
 **Plans**: 2 plans
 
 Plans:
-- [ ] 16-01-PLAN.md — pyprep NoisyChannels integration + adaptive threshold + A/B comparison
+- [x] 16-01-PLAN.md — pyprep NoisyChannels integration + adaptive threshold + A/B comparison
 - [ ] 16-02-PLAN.md — ERP .npz caching + resting-state cache version bump
 
 ## Progress
@@ -269,4 +269,4 @@ Plans:
 | 13. Resting-State EEG Classification | 0/1 | Pending | - |
 | 14. Verification & Requirements Cleanup | 1/1 | Complete    | 2026-02-23 |
 | 15. Grand-Average ERP Plot | 1/1 | Complete    | 2026-02-24 |
-| 16. Preprocessing Deferred Items | 0/1 | Pending | - |
+| 16. Preprocessing Deferred Items | 1/2 | In Progress | - |
