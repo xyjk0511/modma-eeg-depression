@@ -888,6 +888,52 @@ def run_roi_timebin_features():
     return ba_lr, ba_svm
 
 
+def plot_grand_average_erp(out_dir):
+    """ERP-04: Grand-average ERP waveform plot (Fz, Cz, Pz)."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from scipy.stats import sem
+
+    out_dir = Path(out_dir)
+    out_dir.mkdir(exist_ok=True, parents=True)
+
+    _, avg_erps, times, y, _ = load_erp_timeseries("hcue")
+    times_ms = times * 1000
+
+    ch_map = get_parietal_indices(("Fz", "Cz", "Pz"))
+    channels = [("Fz", ch_map["Fz"]), ("Cz", ch_map["Cz"]), ("Pz", ch_map["Pz"])]
+    mdd_mask, hc_mask = y == 1, y == 0
+
+    fig, axes = plt.subplots(3, 1, figsize=(8, 9), sharex=True, sharey=True)
+    for i, (ax, (name, idx)) in enumerate(zip(axes, channels)):
+        ch_erp = avg_erps[:, idx, :] * 1e6  # V -> uV
+        for mask, color, ls, label in [
+            (mdd_mask, "red", "-", f"MDD (n={mdd_mask.sum()})"),
+            (hc_mask, "blue", "--", f"HC (n={hc_mask.sum()})"),
+        ]:
+            m = ch_erp[mask].mean(axis=0)
+            se = sem(ch_erp[mask], axis=0)
+            ax.plot(times_ms, m, color=color, lw=1.5, ls=ls, label=label)
+            ax.fill_between(times_ms, m - se, m + se, color=color, alpha=0.2)
+        ax.axvspan(250, 500, color="gray", alpha=0.15)
+        ax.axvline(0, color="black", lw=0.8, ls="--")
+        ax.set_ylabel(f"{name}\nAmplitude (uV)")
+        ax.text(375, 0.85, "P300", ha="center", fontsize=9,
+                color="gray", transform=ax.get_xaxis_transform())
+        if i == 0:
+            ax.legend(loc="upper right", fontsize=8)
+
+    axes[-1].set_xlabel("Time (ms)")
+    fig.suptitle("Grand-Average ERP: hcue (MDD vs HC)", fontsize=12)
+    fig.tight_layout()
+    fig.savefig(out_dir / "grand_avg_erp.png", dpi=300, bbox_inches="tight")
+    fig.savefig(out_dir / "grand_avg_erp.pdf", bbox_inches="tight")
+    plt.close(fig)
+    print(f"  Saved: {out_dir / 'grand_avg_erp.png'}", flush=True)
+    print(f"  Saved: {out_dir / 'grand_avg_erp.pdf'}", flush=True)
+
+
 def load_resting_features():
     from scipy.io import loadmat
     from scipy.signal import welch
@@ -947,48 +993,5 @@ def run_resting_analysis():
 
 
 if __name__ == "__main__":
-    # Phase 8: hcue single-condition + permutation test
-    CONDITION = "hcue"
-    X, y, ids = load_erp_features()
-    print(f"Feature matrix: {X.shape}", flush=True)
-    run_loso(X, y, ids, label="hcue")
-    permutation_test_loso(X, y, n_perm=1000)
-
-    # Phase 9: multi-condition fusion (hcue + fcue + scue)
-    print("\n" + "="*50)
-    print("Multi-condition fusion: hcue + fcue + scue")
-    dicts = [load_erp_features_dict(c) for c in ["hcue", "fcue", "scue"]]
-    X_fused, y_fused, ids_fused = fuse_conditions(dicts)
-    print(f"Fused matrix: {X_fused.shape}  (n={len(y_fused)})", flush=True)
-    run_loso(X_fused, y_fused, ids_fused, label="fusion(hcue+fcue+scue)")
-    permutation_test_loso(X_fused, y_fused, n_perm=1000)
-
-    # Contrast: scue - hcue
-    print("\n" + "="*50)
-    print("Contrast: scue - hcue")
-    common = sorted(set(dicts[0]) & set(dicts[2]))
-    X_contrast = np.array([dicts[2][s][0] - dicts[0][s][0] for s in common])
-    y_contrast = np.array([dicts[0][s][1] for s in common])
-    ids_contrast = np.array(common)
-    print(f"Contrast matrix: {X_contrast.shape}", flush=True)
-    run_loso(X_contrast, y_contrast, ids_contrast, label="contrast(scue-hcue)")
-    permutation_test_loso(X_contrast, y_contrast, n_perm=1000)
-
-    # Phase 10: Electrode Selection (reuse hcue X, y, ids from top of __main__)
-    ba_base, p_base = permutation_test_loso(X, y, n_perm=1000)
-    run_electrode_selection(X, y, ids, ba_baseline=ba_base, p_baseline=p_base)
-
-    # Phase 11: Time-Window Analysis
-    run_time_window_analysis()
-
-    # Phase 12: Feature Importance
-    run_feature_importance()
-
-    # Phase 13: Single-Trial Classification
-    run_single_trial_analysis()
-
-    # Phase 14: Classifier Comparison (LR / SVM / XGBoost × P300 / P300+N200)
-    run_classifier_comparison()
-
-    # Phase 13 (Resting-State): band-power LOSO vs ERP baseline
-    run_resting_analysis()
+    # Phase 15: Grand-Average ERP Plot
+    plot_grand_average_erp(ROOT / "outputs" / "out_phase15")
