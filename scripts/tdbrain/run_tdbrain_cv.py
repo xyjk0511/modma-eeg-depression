@@ -8,6 +8,9 @@ import numpy as np
 from sklearn.model_selection import StratifiedGroupKFold
 from sklearn.metrics import balanced_accuracy_score, roc_auc_score
 
+import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _root import ROOT
+
 from external_data_adapter import load_tdbrain_features
 from modma_mdd_real_experiment import (
     build_feature_model_pipeline,
@@ -72,7 +75,7 @@ def permutation_test(features, y, groups, observed_ba, n_perm=200, seed=42, n_sp
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--tdbrain-root", required=True)
-    parser.add_argument("--output-dir", default="results_tdbrain_cv")
+    parser.add_argument("--output-dir", default=str(ROOT / "outputs/results_tdbrain_cv"))
     parser.add_argument("--n-permutations", type=int, default=200)
     parser.add_argument("--use-formal-status", action="store_true")
     parser.add_argument("--seed", type=int, default=42)

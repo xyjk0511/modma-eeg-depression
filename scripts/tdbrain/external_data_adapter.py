@@ -12,6 +12,9 @@ import pandas as pd
 import mne
 from scipy.signal import welch
 
+import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _root import ROOT
+
 from modma_mdd_real_experiment import (
     extract_features,
     build_region_indices,

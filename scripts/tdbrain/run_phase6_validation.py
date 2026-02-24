@@ -12,6 +12,9 @@ import time
 import numpy as np
 from joblib import Parallel, delayed
 
+import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _root import ROOT
+
 from modma_mdd_real_experiment import (
     build_feature_model_pipeline,
     compute_subject_balanced_sample_weights,
@@ -28,7 +31,7 @@ logger = logging.getLogger(__name__)
 def parse_args(argv=None):
     p = argparse.ArgumentParser(description="Phase 6: 5-dim vs 15-dim MODMA validation")
     p.add_argument("--bids-root", required=True)
-    p.add_argument("--output-dir", default="results_phase6")
+    p.add_argument("--output-dir", default=str(ROOT / "outputs/results_phase6"))
     p.add_argument("--n-permutations", type=int, default=1000)
     p.add_argument("--n-jobs", type=int, default=4)
     p.add_argument("--seed", type=int, default=42)

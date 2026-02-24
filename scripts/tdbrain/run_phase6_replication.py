@@ -10,6 +10,9 @@ import sys
 import time
 import warnings
 
+import sys as _sys; from pathlib import Path as _Path; _sys.path.insert(0, str(_Path(__file__).resolve().parent.parent))
+from _root import ROOT
+
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -43,7 +46,7 @@ def parse_args(argv=None):
     )
     p.add_argument("--bids-root", required=True)
     p.add_argument("--tdbrain-root", required=True)
-    p.add_argument("--output-dir", default="results_phase6_replication")
+    p.add_argument("--output-dir", default=str(ROOT / "outputs/results_phase6_replication"))
     p.add_argument("--n-permutations", type=int, default=1000)
     p.add_argument("--n-jobs", type=int, default=4)
     p.add_argument("--seed", type=int, default=42)

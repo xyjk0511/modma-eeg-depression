@@ -9,6 +9,9 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.svm import SVC
 from scipy.signal import welch
 
+import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _root import ROOT
+
 from external_data_adapter import load_tdbrain_features
 from modma_mdd_real_experiment import (
     compute_subject_balanced_sample_weights,
@@ -119,7 +122,7 @@ def subject_cv(features, y, groups, n_splits, seed, model_name, C_val):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--tdbrain-root", required=True)
-    parser.add_argument("--output-dir", default="results_tdbrain_opt")
+    parser.add_argument("--output-dir", default=str(ROOT / "outputs/results_tdbrain_opt"))
     parser.add_argument("--n-permutations", type=int, default=200)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()

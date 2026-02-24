@@ -1,10 +1,10 @@
-import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-from _root import ROOT
 """
 MODMA 数据集抑郁症检测 (真实数据验证版)
 直接读取 BIDS 格式的真实 EDF 脑电文件
 """
 from __future__ import annotations
+import sys; from pathlib import Path; sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from _root import ROOT
 
 import logging
 import os
