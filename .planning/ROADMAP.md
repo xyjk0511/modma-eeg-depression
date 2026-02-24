@@ -244,10 +244,11 @@ Plans:
   1. pyprep NoisyChannels 替代纯振幅坏通道检测
   2. EDF 加载后缓存为 .npz，第二次运行 < 1s
   3. 保留受试者数 >= 35
-**Plans**: TBD
+**Plans**: 2 plans
 
 Plans:
-- [ ] 16-01-PLAN.md — pyprep integration + .npz caching
+- [ ] 16-01-PLAN.md — pyprep NoisyChannels integration + adaptive threshold + A/B comparison
+- [ ] 16-02-PLAN.md — ERP .npz caching + resting-state cache version bump
 
 ## Progress
 
