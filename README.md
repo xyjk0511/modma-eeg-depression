@@ -1,5 +1,20 @@
 # MODMA EEG Depression Classification / MODMA 脑电抑郁分类项目
 
+![Python](https://img.shields.io/badge/Python-EEG%20ML-blue)
+![Dataset](https://img.shields.io/badge/Dataset-MODMA-purple)
+![Balanced%20Accuracy](https://img.shields.io/badge/BA-0.670-success)
+![p--value](https://img.shields.io/badge/p-0.022-orange)
+
+## At a glance / 项目速览
+
+| Item | Summary |
+|------|---------|
+| Task | MDD vs Healthy Controls classification / 抑郁症与健康对照分类 |
+| Data modality | EEG with ERP/P300-oriented features |
+| Best metric | **Balanced Accuracy 0.670** |
+| Statistical significance | **p = 0.022** |
+| Project value | Biomedical signal ML, feature engineering, subject-level validation |
+
 This repository contains an EEG-based depression classification pipeline built on the **MODMA** dataset, with emphasis on ERP/P300 feature engineering, subject-level validation, and statistically grounded evaluation.
 
 本仓库实现了一个基于 **MODMA** 数据集的脑电抑郁分类流程，重点放在 ERP/P300 特征提取、严格的受试者级验证，以及统计显著性分析上。
