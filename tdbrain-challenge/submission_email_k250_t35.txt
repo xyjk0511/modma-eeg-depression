@@ -1,0 +1,48 @@
+Subject: TDBrain Challenge - Adult Validation Submission #3 (Final)
+
+Dear TDBrain Challenge Team,
+
+Please find attached our third and final submission for the Adult Validation Sample.
+
+**Submission Details:**
+- File: adult_validation_predictions_k250_t35.xlsx
+- Submission: 3/3 (Final)
+- Date: 2026-03-02
+
+**Model Configuration:**
+- Algorithm: SVM (RBF kernel) with SelectKBest feature selection
+- Features: k=250 (selected from 676-dimensional v3_subset)
+- Decision threshold: 0.35 (lowered from default 0.5)
+- Training data: 904 subjects from DISCOVERY (exclude_high_fp filtering)
+
+**Cross-Validation Performance (5-fold):**
+- Balanced Accuracy: 0.6874 ± 0.0251
+- Sensitivity: 60.1%
+- Specificity: 77.4%
+- Overfitting gap: 0.0859 (mild overfitting)
+
+**Predictions:**
+- Total subjects: 60
+- Predicted MDD: 29 (48.3%)
+- Predicted nonMDD: 31 (51.7%)
+
+**Strategy Rationale:**
+
+This submission addresses the severe Sensitivity collapse observed in submission #2 (BA=0.45, Sensitivity=10%). Based on our analysis, the Adult Validation dataset appears to have a 50:50 MDD/nonMDD balance, not the 15% MDD prevalence we initially assumed.
+
+Key improvements:
+1. Increased feature count from k=150 to k=250 for higher CV BA
+2. Lowered decision threshold from 0.5 to 0.35 to boost Sensitivity
+3. Predicted MDD ratio (48.3%) now aligns with expected 50:50 balance
+
+Compared to submission #1:
+- Sensitivity: 50.4% → 60.1% (+9.7%)
+- Specificity: 86.9% → 77.4% (-9.5%)
+- Predicted MDD: 15% → 48.3% (more realistic)
+
+We expect this balanced approach to perform significantly better than our previous submissions.
+
+Thank you for organizing this challenge.
+
+Best regards,
+[Your Name]

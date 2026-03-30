@@ -1,0 +1,92 @@
+{
+  "baseline": {
+    "ba": 0.6318,
+    "auc": 0.6884,
+    "sen": 0.6885,
+    "spe": 0.575,
+    "per_fold_ba": [
+      0.6258,
+      0.6779,
+      0.6263,
+      0.6149,
+      0.614
+    ]
+  },
+  "age_as_feature": {
+    "ba": 0.6243,
+    "auc": 0.6876,
+    "sen": 0.6623,
+    "spe": 0.5863,
+    "per_fold_ba": [
+      0.6215,
+      0.6142,
+      0.5845,
+      0.6524,
+      0.6489
+    ],
+    "n_subjects": 1122,
+    "vs_baseline_p": 0.6875
+  },
+  "age_stratified": {
+    "overall_ba": 0.5942,
+    "overall_auc": 0.6957,
+    "overall_sen": 0.4295,
+    "overall_spe": 0.7589,
+    "per_fold_ba": [
+      0.587,
+      0.5597,
+      0.617,
+      0.5891,
+      0.6181
+    ],
+    "per_bin": {
+      "young": {
+        "n": 374,
+        "ba": 0.642,
+        "auc": 0.7927,
+        "sen": 0.4286,
+        "spe": 0.8555
+      },
+      "middle": {
+        "n": 375,
+        "ba": 0.5662,
+        "auc": 0.5494,
+        "sen": 0.4126,
+        "spe": 0.7198
+      },
+      "old": {
+        "n": 373,
+        "ba": 0.5557,
+        "auc": 0.5922,
+        "sen": 0.4488,
+        "spe": 0.6626
+      }
+    },
+    "n_subjects": 1122,
+    "vs_baseline_p": 0.96875
+  },
+  "age_interaction": {
+    "ba": 0.6247,
+    "auc": 0.6892,
+    "sen": 0.6656,
+    "spe": 0.5838,
+    "per_fold_ba": [
+      0.6297,
+      0.6172,
+      0.5671,
+      0.6575,
+      0.652
+    ],
+    "n_subjects": 1122,
+    "vs_baseline_p": 0.65625
+  },
+  "best_strategy": {
+    "name": "baseline",
+    "ba": 0.6318,
+    "delta_ba": 0.0,
+    "p_value": 1.0,
+    "significant": false
+  },
+  "task": "age_covariate",
+  "timestamp": "2026-02-24T11:25:05.308925"
+}

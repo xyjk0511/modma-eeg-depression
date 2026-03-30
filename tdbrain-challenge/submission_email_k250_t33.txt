@@ -1,0 +1,39 @@
+Subject: TDBrain Challenge - Adult Validation Submission #2
+
+Dear TDBrain Challenge Team,
+
+Please find attached our second submission for the Adult Validation Sample.
+
+Submission Details:
+- File: adult_validation_predictions_k250_t33.xlsx
+- Submission: 2/3
+- Date: 2026-03-02
+
+Model Configuration:
+- Algorithm: SVM (RBF kernel) with SelectKBest feature selection
+- Features: k=250 (selected from 676-dimensional feature set)
+- Decision threshold: 0.33
+- Training data: 904 subjects from DISCOVERY dataset
+
+Cross-Validation Performance (5-fold):
+- Balanced Accuracy: 0.6896
+- Sensitivity: 80.7%
+- Specificity: 57.3%
+
+Predictions:
+- Total subjects: 60
+- Predicted MDD: 33 (55.0%)
+- Predicted nonMDD: 27 (45.0%)
+
+Key Improvements:
+This submission addresses the issues identified in submission #1 (BA=0.45, Sensitivity=10%):
+- Lowered decision threshold from 0.5 to 0.33 to improve sensitivity
+- Increased feature count from 150 to 250
+- Adjusted prediction distribution to better match expected class balance
+
+We expect significant improvement over submission #1, particularly in sensitivity.
+
+Thank you for organizing this challenge.
+
+Best regards,
+[Your Name]

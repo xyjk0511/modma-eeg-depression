@@ -13,3 +13,25 @@ tmp_*/
 
 # Editor
 .vscode/
+
+# AI工具目录
+.claude/
+.codex/
+openspec/
+
+# 实验结果（大文件/中间产物）
+results/
+
+# 验证数据集样本
+tdbrain-challenge/AdultValidationSampleTDBRAIN/
+tdbrain-challenge/cache_*/
+tdbrain-challenge/models/
+tdbrain-challenge/submissions/
+tdbrain-challenge/figures/
+
+# GSD planning目录
+.planning/
+tdbrain-challenge/.planning/
+tdbrain/.codex/
+tdbrain-challenge/.claude/
+tdbrain-challenge/.codex/

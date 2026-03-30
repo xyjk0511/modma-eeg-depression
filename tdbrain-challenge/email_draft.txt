@@ -1,0 +1,20 @@
+Subject: TDBrain Challenge — Submission Format Clarification
+
+Dear TDBrain Challenge Team,
+
+I am participating in the TDBrain Challenge (MDD diagnostic prediction task) and would like to clarify a few details regarding the submission process:
+
+1. Submission format: Should predictions be submitted as a CSV file? If so, what are the expected column names (e.g., subject_id, prediction, probability)?
+
+2. Prediction type: Should we submit hard labels (MDD / nonMDD) or probability scores?
+
+3. REPLICATION subset: Will participants receive the REPLICATION data without labels for generating predictions? How many subjects does it contain?
+
+4. Deadline: Is there a submission deadline for this challenge?
+
+5. Evaluation: The evaluation table lists Sensitivity, Specificity, and Balanced Accuracy for the MDD Diagnostic task. Is Balanced Accuracy the primary ranking metric?
+
+Thank you for your time. Looking forward to your reply.
+
+Best regards,
+[Your Name]

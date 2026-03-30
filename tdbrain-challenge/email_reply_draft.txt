@@ -1,0 +1,30 @@
+Subject: Re: TDBrain Challenge — Adult Validation Sample Clarification
+
+Dear Prof. Arns,
+
+Thank you for the clarification. I understand that:
+1. Diagnostic predictions should be on the **Adult Validation sample** (not REPLICATION)
+2. Predictions should be **discrete labels** (MDD / nonMDD), not probabilities
+3. Balanced Accuracy is the primary evaluation metric
+4. Results should be submitted in **Excel format**
+
+However, I need clarification on the Adult Validation sample:
+
+**Question:** In the `participants.tsv` file I have, I can see:
+- DISCOVERY subset (1,227 subjects) — used for training
+- REPLICATION subset (120 subjects) — you mentioned this is for treatment response only
+
+But I cannot find a sample explicitly labeled as "Adult Validation". Could you please clarify:
+1. Is the Adult Validation sample a subset within DISCOVERY (e.g., subjects with `formal_status=="HEALTHY"`)?
+2. Or is it a separate data file that I need to request access to?
+3. If it's a separate file, could you provide the file name or access instructions?
+
+Once I know which subjects constitute the Adult Validation sample, I will:
+- Re-run my v3.0 model (exclude_high_fp + v3_subset + SVM) on those subjects
+- Generate discrete predictions (MDD / nonMDD)
+- Submit results in Excel format
+
+Thank you for your patience.
+
+Best regards,
+Buchan

@@ -1,0 +1,32 @@
+Subject: TDBrain Challenge - Adult Validation Sample Diagnostic Predictions (Submission #1)
+
+Dear Prof. Arns and TDBrain Team,
+
+I am submitting my first diagnostic prediction for the Adult Validation Sample as part of the TDBrain Challenge.
+
+**Submission Details:**
+- Task: MDD vs. healthy controls diagnostic prediction
+- Sample: Adult Validation Sample (60 subjects)
+- Model: SVM (RBF kernel, class_weight=balanced) + SelectKBest feature selection (k=150)
+- Training data: DISCOVERY subset with exclude_high_fp filtering (904 subjects)
+- Features: v3_subset (abs_bp + rel_bp + Hjorth parameters, 676-dim combined EO+EC)
+- Cross-validation performance: BA = 0.6864 ± 0.0276 (5-fold StratifiedGroupKFold)
+- Overfitting check: Training-CV gap = 0.0446 (no overfitting)
+
+**Prediction Summary:**
+- Predicted MDD: 9/60 (15.0%)
+- Predicted nonMDD: 51/60 (85.0%)
+- Format: Discrete labels (MDD / nonMDD) in Excel format as requested
+
+**Model Rationale:**
+This submission prioritizes generalization ability over peak CV performance. The k=150 feature selection configuration was chosen for its robust generalization (gap < 0.05) and stability across cross-validation folds, which should provide reliable performance on the independent validation set.
+
+Please find the predictions attached in Excel format.
+
+I look forward to receiving the validation results. This is my first of three allowed submissions.
+
+Best regards,
+Buchan
+
+---
+Attachment: adult_validation_predictions_k150.xlsx

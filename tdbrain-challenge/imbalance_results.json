@@ -1,0 +1,277 @@
+{
+  "task": "class_imbalance_sweep",
+  "timestamp": "2026-02-24T01:48:09.430480",
+  "n_subjects": 1138,
+  "label_counts": {
+    "MDD": 305,
+    "nonMDD": 833
+  },
+  "seeds": [
+    42,
+    0,
+    123
+  ],
+  "strategies": {
+    "none": {
+      "v3_subset": {
+        "ba_mean": 0.5024,
+        "ba_std": 0.0,
+        "auc_mean": 0.651,
+        "auc_std": 0.0022,
+        "sen_mean": 0.0131,
+        "sen_std": 0.0,
+        "spe_mean": 0.9916,
+        "spe_std": 0.0,
+        "per_seed": [
+          {
+            "ba": 0.5024,
+            "auc": 0.6495,
+            "sen": 0.0131,
+            "spe": 0.9916
+          },
+          {
+            "ba": 0.5024,
+            "auc": 0.6494,
+            "sen": 0.0131,
+            "spe": 0.9916
+          },
+          {
+            "ba": 0.5024,
+            "auc": 0.6541,
+            "sen": 0.0131,
+            "spe": 0.9916
+          }
+        ],
+        "_seeds_done": 3
+      },
+      "full": {
+        "ba_mean": 0.4958,
+        "ba_std": 0.0,
+        "auc_mean": 0.6584,
+        "auc_std": 0.0018,
+        "sen_mean": 0.0,
+        "sen_std": 0.0,
+        "spe_mean": 0.9916,
+        "spe_std": 0.0,
+        "per_seed": [
+          {
+            "ba": 0.4958,
+            "auc": 0.6562,
+            "sen": 0.0,
+            "spe": 0.9916
+          },
+          {
+            "ba": 0.4958,
+            "auc": 0.6585,
+            "sen": 0.0,
+            "spe": 0.9916
+          },
+          {
+            "ba": 0.4958,
+            "auc": 0.6605,
+            "sen": 0.0,
+            "spe": 0.9916
+          }
+        ],
+        "_seeds_done": 3
+      }
+    },
+    "class_weight": {
+      "v3_subset": {
+        "ba_mean": 0.6318,
+        "ba_std": 0.0,
+        "auc_mean": 0.6887,
+        "auc_std": 0.0002,
+        "sen_mean": 0.6885,
+        "sen_std": 0.0,
+        "spe_mean": 0.575,
+        "spe_std": 0.0,
+        "per_seed": [
+          {
+            "ba": 0.6318,
+            "auc": 0.6884,
+            "sen": 0.6885,
+            "spe": 0.575
+          },
+          {
+            "ba": 0.6318,
+            "auc": 0.689,
+            "sen": 0.6885,
+            "spe": 0.575
+          },
+          {
+            "ba": 0.6318,
+            "auc": 0.6887,
+            "sen": 0.6885,
+            "spe": 0.575
+          }
+        ],
+        "_seeds_done": 3
+      },
+      "full": {
+        "ba_mean": 0.6147,
+        "ba_std": 0.0,
+        "auc_mean": 0.6746,
+        "auc_std": 0.0001,
+        "sen_mean": 0.6459,
+        "sen_std": 0.0,
+        "spe_mean": 0.5834,
+        "spe_std": 0.0,
+        "per_seed": [
+          {
+            "ba": 0.6147,
+            "auc": 0.6746,
+            "sen": 0.6459,
+            "spe": 0.5834
+          },
+          {
+            "ba": 0.6147,
+            "auc": 0.6745,
+            "sen": 0.6459,
+            "spe": 0.5834
+          },
+          {
+            "ba": 0.6147,
+            "auc": 0.6748,
+            "sen": 0.6459,
+            "spe": 0.5834
+          }
+        ],
+        "_seeds_done": 3
+      }
+    },
+    "smote": {
+      "v3_subset": {
+        "ba_mean": 0.6155,
+        "ba_std": 0.0019,
+        "auc_mean": 0.6744,
+        "auc_std": 0.0018,
+        "sen_mean": 0.5913,
+        "sen_std": 0.0067,
+        "spe_mean": 0.6399,
+        "spe_std": 0.0069,
+        "per_seed": [
+          {
+            "ba": 0.6135,
+            "auc": 0.6725,
+            "sen": 0.5836,
+            "spe": 0.6435
+          },
+          {
+            "ba": 0.6151,
+            "auc": 0.6768,
+            "sen": 0.6,
+            "spe": 0.6303
+          },
+          {
+            "ba": 0.618,
+            "auc": 0.674,
+            "sen": 0.5902,
+            "spe": 0.6459
+          }
+        ],
+        "_seeds_done": 3
+      },
+      "full": {
+        "ba_mean": 0.5984,
+        "ba_std": 0.0026,
+        "auc_mean": 0.6661,
+        "auc_std": 0.0019,
+        "sen_mean": 0.517,
+        "sen_std": 0.0082,
+        "spe_mean": 0.6799,
+        "spe_std": 0.003,
+        "per_seed": [
+          {
+            "ba": 0.6019,
+            "auc": 0.6636,
+            "sen": 0.5279,
+            "spe": 0.6759
+          },
+          {
+            "ba": 0.5956,
+            "auc": 0.6665,
+            "sen": 0.5082,
+            "spe": 0.6831
+          },
+          {
+            "ba": 0.5977,
+            "auc": 0.6683,
+            "sen": 0.5148,
+            "spe": 0.6807
+          }
+        ],
+        "_seeds_done": 3
+      }
+    },
+    "smote_cw": {
+      "v3_subset": {
+        "ba_mean": 0.6155,
+        "ba_std": 0.0019,
+        "auc_mean": 0.6744,
+        "auc_std": 0.0018,
+        "sen_mean": 0.5913,
+        "sen_std": 0.0067,
+        "spe_mean": 0.6399,
+        "spe_std": 0.0069,
+        "per_seed": [
+          {
+            "ba": 0.6135,
+            "auc": 0.6725,
+            "sen": 0.5836,
+            "spe": 0.6435
+          },
+          {
+            "ba": 0.6151,
+            "auc": 0.6768,
+            "sen": 0.6,
+            "spe": 0.6303
+          },
+          {
+            "ba": 0.618,
+            "auc": 0.674,
+            "sen": 0.5902,
+            "spe": 0.6459
+          }
+        ],
+        "_seeds_done": 3
+      },
+      "full": {
+        "ba_mean": 0.5984,
+        "ba_std": 0.0026,
+        "auc_mean": 0.6661,
+        "auc_std": 0.0019,
+        "sen_mean": 0.517,
+        "sen_std": 0.0082,
+        "spe_mean": 0.6799,
+        "spe_std": 0.003,
+        "per_seed": [
+          {
+            "ba": 0.6019,
+            "auc": 0.6636,
+            "sen": 0.5279,
+            "spe": 0.6759
+          },
+          {
+            "ba": 0.5956,
+            "auc": 0.6665,
+            "sen": 0.5082,
+            "spe": 0.6831
+          },
+          {
+            "ba": 0.5977,
+            "auc": 0.6683,
+            "sen": 0.5148,
+            "spe": 0.6807
+          }
+        ],
+        "_seeds_done": 3
+      }
+    }
+  },
+  "recommendation": {
+    "strategy": "class_weight",
+    "feature_set": "v3_subset",
+    "rationale": "strategy=class_weight, feat_set=v3_subset, BA=0.6318. Selected by BA ranking with SEN/SPE>=0.40 constraint and 0.01 tolerance rule."
+  }
+}

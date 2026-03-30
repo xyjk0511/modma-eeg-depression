@@ -16,9 +16,9 @@ def load_subjects(condition: str) -> pd.DataFrame:
             .reset_index(drop=True))
 
 
-def load_raw(subject_id: str, condition: str) -> mne.io.Raw:
-    vhdr = (DATASET_ROOT / subject_id / "ses-1" / "eeg"
-            / f"{subject_id}_ses-1_task-rest{condition}_eeg.vhdr")
+def load_raw(subject_id: str, condition: str, session: int = 1) -> mne.io.Raw:
+    vhdr = (DATASET_ROOT / subject_id / f"ses-{session}" / "eeg"
+            / f"{subject_id}_ses-{session}_task-rest{condition}_eeg.vhdr")
     if not vhdr.exists():
         raise FileNotFoundError(f"EEG file not found: {vhdr}")
     return mne.io.read_raw_brainvision(str(vhdr), preload=False, verbose=False)
