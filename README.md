@@ -17,6 +17,12 @@
 
 ![MODMA summary card](assets/summary-card.svg)
 
+### Visual snapshot / 可视化结果
+
+| ROC Curve | Confusion Matrix |
+|-----------|------------------|
+| ![ROC curve](assets/roc_curve.png) | ![Confusion matrix](assets/confusion_matrix.png) |
+
 This repository contains an EEG-based depression classification pipeline built on the **MODMA** dataset, with emphasis on ERP/P300 feature engineering, subject-level validation, and statistically grounded evaluation.
 
 本仓库实现了一个基于 **MODMA** 数据集的脑电抑郁分类流程，重点放在 ERP/P300 特征提取、严格的受试者级验证，以及统计显著性分析上。
